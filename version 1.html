@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Project: Rusty Core</title>
+    <style>
+        /* --- БАЗОВЫЕ НАСТРОЙКИ --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Чтобы не было полос прокрутки */
+            background-color: #050505; /* Почти черный цвет космоса */
+            font-family: 'Courier New', Courier, monospace; /* Шрифт как в старых терминалах */
+            color: #8c8c8c; /* Тусклый серый цвет текста */
+        }
+
+        /* --- ФОН (Эффект старого металла и шума) --- */
+        .background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            /* Градиент создает эффект грязного металла */
+            background: 
+                radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000000 100%),
+                repeating-linear-gradient(45deg, #111 0px, #111 1px, #0d0d0d 2px, #0d0d0d 4px);
+        }
+
+        /* Добавляем эффект "зернистости" (шума) через CSS */
+        .background::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.05;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+
+        /* --- ЦЕНТРАЛЬНОЕ ОКНО ИГРЫ --- */
+        .game-interface {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px;
+            height: 600px;
+            z-index: 10;
+            
+            /* Стиль рамки "Ржавый металл" */
+            background-color: #141414;
+            border: 4px solid #3e2723; /* Темно-коричневый (ржавчина) */
+            box-shadow: 
+                0 0 20px rgba(0, 0, 0, 0.8), /* Глубокая тень */
+                inset 0 0 50px rgba(0, 0, 0, 0.9), /* Затемнение внутри */
+                0 0 10px rgba(62, 39, 35, 0.5); /* Свечение ржавчины снаружи */
+            
+            /* Скругляем углы, но делаем их "неровными" */
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Декоративные болты по углам */
+        .bolt {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: radial-gradient(circle, #5d4037 30%, #1a1a1a 100%);
+            border-radius: 50%;
+            border: 1px solid #222;
+        }
+        .tl { top: -8px; left: -8px; }
+        .tr { top: -8px; right: -8px; }
+        .bl { bottom: -8px; left: -8px; }
+        .br { bottom: -8px; right: -8px; }
+
+        /* --- ЗАГОЛОВОК И ИНТЕРФЕЙС --- */
+        .header {
+            border-bottom: 2px solid #3e2723;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 14px;
+            color: #a1887f; /* Светлая ржавчина */
+            text-shadow: 0 0 5px rgba(161, 136, 127, 0.3);
+        }
+
+        .status-light {
+            width: 10px;
+            height: 10px;
+            background-color: #ff3d00; /* Аварийный красный */
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px #ff3d00;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        /* --- ЭКРАН ИГРЫ --- */
+        #game-screen {
+            flex-grow: 1;
+            background-color: #000;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+            /* Эффект старого ЭЛТ монитора (полосы) */
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+        }
+
+        .log-text {
+            padding: 10px;
+            font-size: 16px;
+            color: #d7ccc8; /* Грязно-белый */
+        }
+
+        /* Эффект виньетки (затемнение по краям экрана) */
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: 0 0 150px rgba(0,0,0,0.9) inset;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Фоновый слой -->
+    <div class="background"></div>
+
+    <!-- Основной интерфейс -->
+    <div class="game-interface">
+        <!-- Декоративные болты -->
+        <div class="bolt tl"></div>
+        <div class="bolt tr"></div>
+        <div class="bolt bl"></div>
+        <div class="bolt br"></div>
+
+        <!-- Верхняя панель -->
+        <div class="header">
+            <span>System: <span style="color: #ff5722;">CRITICAL FAILURE</span></span>
+            <span>Hull Integrity: <span style="color: #ff5722;">12%</span></span>
+            <span>Status: <div class="status-light"></div></span>
+        </div>
+
+        <!-- Окно самой игры -->
+        <div id="game-screen">
+            <div class="vignette"></div>
+            <div class="log-text">
+                > Инициализация системы жизнеобеспечения...<br>
+                > Ошибка: Сектор 7 поврежден.<br>
+                > Ожидание ввода команд...<br>
+                <span style="animation: blink 1s infinite">_</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Пока здесь пусто, но скоро мы добавим логику
+        console.log("System initialized. Waiting for player.");
+    </script>
+</body>
+</html>

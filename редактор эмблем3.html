@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG Emblem Editor v3.0</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .canvas-area {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        canvas {
+            background: #000;
+            border: 1px solid #555;
+            cursor: crosshair;
+        }
+        .controls {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        button {
+            background: #3e2723;
+            color: #fff;
+            border: 1px solid #5d4037;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #5d4037;
+        }
+        button.danger {
+            background: #8b0000;
+            border-color: #aa0000;
+        }
+        button.success {
+            background: #006400;
+            border-color: #008000;
+        }
+        button.info {
+            background: #003d80;
+            border-color: #0050a0;
+        }
+        button.active {
+            background: #ff5722;
+            border-color: #ff7043;
+            box-shadow: 0 0 10px #ff5722;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #1a1a1a;
+            color: #0f0;
+            border: 1px solid #444;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .path-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .path-item {
+            padding: 8px;
+            background: #333;
+            margin: 4px 0;
+            border-radius: 3px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid #00e676;
+        }
+        .path-item.closed {
+            border-left-color: #ff5722;
+        }
+        .path-item.hole {
+            border-left-color: #ff0000;
+            background: #3a2222;
+        }
+        .path-item button {
+            padding: 3px 8px;
+            font-size: 10px;
+            margin: 0;
+        }
+        .vertex-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 5px;
+            padding: 5px;
+            background: #222;
+            border-radius: 3px;
+        }
+        .vertex-item {
+            padding: 3px;
+            background: #444;
+            margin: 2px 0;
+            border-radius: 2px;
+            font-size: 10px;
+        }
+        h1, h2, h3 {
+            color: #ff5722;
+            text-shadow: 0 0 10px #ff5722;
+        }
+        .path-count {
+            background: #ff5722;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .symmetry-controls {
+            margin: 10px 0;
+            padding: 10px;
+            background: #222;
+            border-radius: 4px;
+        }
+        .symmetry-controls label {
+            display: block;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        .symmetry-controls input[type="checkbox"] {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 SVG Emblem Editor v3.0</h1>
+    <div class="container">
+        <div class="canvas-area">
+            <h2>Холст <span class="path-count" id="pathCount">Путей: 0</span></h2>
+            <canvas id="editorCanvas" width="500" height="500"></canvas>
+            <div class="symmetry-controls">
+                <strong>Линии симметрии:</strong>
+                <label><input type="checkbox" id="symmetryV" onchange="toggleSymmetry()"> ⬌ Вертикальная (V)</label>
+                <label><input type="checkbox" id="symmetryH" onchange="toggleSymmetry()"> ⬍ Горизонтальная (H)</label>
+            </div>
+            <div class="info">
+                <strong>Управление:</strong><br>
+                • ЛКМ — добавить вершину<br>
+                • ПКМ — удалить последнюю вершину<br>
+                • Двойной клик — замкнуть текущий путь<br>
+                • Ctrl+Z — отменить последнюю вершину<br>
+                • N — новый путь (не замыкая текущий)<br>
+                • Delete — удалить выбранный путь<br>
+                • <strong>Первый замкнутый путь = основа, остальные = вырезы</strong>
+            </div>
+        </div>
+        <div class="controls">
+            <h2>Инструменты</h2>
+            <button onclick="clearCanvas()" class="danger">🗑️ Очистить всё</button>
+            <button onclick="undoLast()" class="danger">↩️ Отменить</button>
+            <button onclick="closePath()" class="info">🔒 Замкнуть путь</button>
+            <button onclick="startNewPath()" class="info">➕ Новый путь</button>
+            <button onclick="exportSVG()" class="success">📤 Экспорт SVG</button>
+            <button onclick="copyToClipboard()" class="success">📋 Копировать код</button>
+            
+            <h3>Пути:</h3>
+            <div class="path-list" id="pathList"></div>
+            
+            <h3>Экспорт:</h3>
+            <textarea id="exportOutput" placeholder="Здесь появится SVG код..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const pathList = document.getElementById('pathList');
+        const exportOutput = document.getElementById('exportOutput');
+        const pathCount = document.getElementById('pathCount');
+        
+        let paths = [];
+        let currentPathIndex = -1;
+        let history = [];
+        
+        const gridSize = 50;
+        const snapToGrid = true;
+        const snapDistance = 10;
+        const pathColors = ['#00e676', '#ff5722', '#6bb6ff', '#ffd966', '#ff6b6b', '#c0c0c0'];
+        
+        // Симметрия
+        let showSymmetryV = false;
+        let showSymmetryH = false;
+        
+        function getCurrentPath() {
+            if (currentPathIndex >= 0 && currentPathIndex < paths.length) {
+                return paths[currentPathIndex];
+            }
+            return null;
+        }
+        
+        function toggleSymmetry() {
+            showSymmetryV = document.getElementById('symmetryV').checked;
+            showSymmetryH = document.getElementById('symmetryH').checked;
+            draw();
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Сетка
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Оси
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            
+            // Линии симметрии
+            if (showSymmetryV) {
+                ctx.strokeStyle = '#ff5722';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2, 0);
+                ctx.lineTo(canvas.width / 2, canvas.height);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Подпись
+                ctx.fillStyle = '#ff5722';
+                ctx.font = 'bold 12px Courier New';
+                ctx.fillText('V', canvas.width / 2 + 5, 15);
+            }
+            
+            if (showSymmetryH) {
+                ctx.strokeStyle = '#ff5722';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height / 2);
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Подпись
+                ctx.fillStyle = '#ff5722';
+                ctx.font = 'bold 12px Courier New';
+                ctx.fillText('H', 5, canvas.height / 2 - 5);
+            }
+            
+            // Рисуем все пути
+            paths.forEach((path, pathIdx) => {
+                const color = pathColors[pathIdx % pathColors.length];
+                const isCurrent = pathIdx === currentPathIndex;
+                const isHole = pathIdx > 0 && path.isClosed;
+                
+                if (path.vertices.length > 0) {
+                    ctx.strokeStyle = isHole ? '#ff0000' : color;
+                    ctx.lineWidth = isCurrent ? 3 : 2;
+                    ctx.beginPath();
+                    ctx.moveTo(path.vertices[0].x, path.vertices[0].y);
+                    for (let i = 1; i < path.vertices.length; i++) {
+                        ctx.lineTo(path.vertices[i].x, path.vertices[i].y);
+                    }
+                    if (path.isClosed) {
+                        ctx.closePath();
+                        if (!isHole) {
+                            ctx.fillStyle = color.replace(')', ', 0.2)').replace('rgb', 'rgba');
+                            ctx.fill();
+                        } else {
+                            // Вырезы показываем красным с прозрачностью
+                            ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+                            ctx.fill();
+                        }
+                    }
+                    ctx.stroke();
+                }
+                
+                // Вершины
+                path.vertices.forEach((v, i) => {
+                    ctx.fillStyle = isHole ? '#ff0000' : (i === 0 ? '#ff5722' : color);
+                    ctx.beginPath();
+                    ctx.arc(v.x, v.y, isCurrent ? 6 : 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    if (isCurrent) {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '10px Courier New';
+                        ctx.fillText(i, v.x + 8, v.y - 8);
+                    }
+                });
+            });
+            
+            updatePathList();
+            updatePathCount();
+        }
+        
+        function snapToGridPoint(x, y) {
+            if (!snapToGrid) return { x, y };
+            
+            const snappedX = Math.round(x / gridSize) * gridSize;
+            const snappedY = Math.round(y / gridSize) * gridSize;
+            
+            if (Math.abs(x - snappedX) < snapDistance && Math.abs(y - snappedY) < snapDistance) {
+                return { x: snappedX, y: snappedY };
+            }
+            return { x, y };
+        }
+        
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const snapped = snapToGridPoint(x, y);
+            
+            if (currentPathIndex < 0 || (getCurrentPath() && getCurrentPath().isClosed)) {
+                startNewPath();
+            }
+            
+            const currentPath = getCurrentPath();
+            if (currentPath && !currentPath.isClosed) {
+                saveHistory();
+                currentPath.vertices.push(snapped);
+                draw();
+            }
+        });
+        
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const currentPath = getCurrentPath();
+            if (currentPath && currentPath.vertices.length > 0) {
+                saveHistory();
+                currentPath.vertices.pop();
+                draw();
+            }
+        });
+        
+        canvas.addEventListener('dblclick', () => {
+            closePath();
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'z') {
+                undoLast();
+            } else if (e.key === 'n' || e.key === 'N' || e.key === 'т' || e.key === 'Т') {
+                startNewPath();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (currentPathIndex >= 0) {
+                    saveHistory();
+                    paths.splice(currentPathIndex, 1);
+                    if (currentPathIndex >= paths.length) {
+                        currentPathIndex = paths.length - 1;
+                    }
+                    draw();
+                }
+            }
+        });
+        
+        function saveHistory() {
+            history.push(JSON.parse(JSON.stringify(paths)));
+            if (history.length > 20) history.shift();
+        }
+        
+        function undoLast() {
+            if (history.length > 0) {
+                paths = history.pop();
+                if (currentPathIndex >= paths.length) {
+                    currentPathIndex = paths.length - 1;
+                }
+                draw();
+            }
+        }
+        
+        function clearCanvas() {
+            if (confirm('Удалить все пути?')) {
+                paths = [];
+                currentPathIndex = -1;
+                history = [];
+                exportOutput.value = '';
+                draw();
+            }
+        }
+        
+        function closePath() {
+            const currentPath = getCurrentPath();
+            if (currentPath && currentPath.vertices.length >= 3 && !currentPath.isClosed) {
+                currentPath.isClosed = true;
+                draw();
+            }
+        }
+        
+        function startNewPath() {
+            saveHistory();
+            paths.push({
+                vertices: [],
+                isClosed: false
+            });
+            currentPathIndex = paths.length - 1;
+            draw();
+        }
+        
+        function deletePath(index) {
+            if (confirm('Удалить этот путь?')) {
+                saveHistory();
+                paths.splice(index, 1);
+                if (currentPathIndex >= paths.length) {
+                    currentPathIndex = paths.length - 1;
+                }
+                draw();
+            }
+        }
+        
+        function selectPath(index) {
+            currentPathIndex = index;
+            draw();
+        }
+        
+        function updatePathCount() {
+            const closedCount = paths.filter(p => p.isClosed).length;
+            const holeCount = paths.filter((p, i) => i > 0 && p.isClosed).length;
+            pathCount.textContent = `Путей: ${paths.length} (замкнуто: ${closedCount}, вырезы: ${holeCount})`;
+        }
+        
+        function updatePathList() {
+            pathList.innerHTML = paths.map((path, i) => {
+                const isHole = i > 0 && path.isClosed;
+                return `
+                <div class="path-item ${path.isClosed ? 'closed' : ''} ${isHole ? 'hole' : ''}" style="border-left-color: ${isHole ? '#ff0000' : pathColors[i % pathColors.length]}">
+                    <div>
+                        <strong>Путь #${i}</strong> ${path.isClosed ? (isHole ? '⛔ ВЫРЕЗ' : '✅ ОСНОВА') : '⏳'}<br>
+                        <span style="color: #888;">Вершин: ${path.vertices.length}</span>
+                    </div>
+                    <div>
+                        <button onclick="selectPath(${i})" title="Выбрать">👁️</button>
+                        <button onclick="deletePath(${i})" class="danger" title="Удалить">🗑️</button>
+                    </div>
+                </div>
+                ${currentPathIndex === i && !path.isClosed ? `
+                    <div class="vertex-list">
+                        ${path.vertices.map((v, j) => 
+                            `<div class="vertex-item">#${j}: (${Math.round(v.x)}, ${Math.round(v.y)})</div>`
+                        ).join('')}
+                    </div>
+                ` : ''}`;
+            }).join('');
+        }
+        
+        function exportSVG() {
+            const closedPaths = paths.filter(p => p.isClosed && p.vertices.length >= 3);
+            
+            if (closedPaths.length === 0) {
+                alert('Нужно минимум 1 замкнутый путь с 3+ вершинами!');
+                return;
+            }
+            
+            // Находим bounding box всех путей
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            closedPaths.forEach(path => {
+                path.vertices.forEach(v => {
+                    minX = Math.min(minX, v.x);
+                    maxX = Math.max(maxX, v.x);
+                    minY = Math.min(minY, v.y);
+                    maxY = Math.max(maxY, v.y);
+                });
+            });
+            
+            const width = maxX - minX || 1;
+            const height = maxY - minY || 1;
+            const scale = 20 / Math.max(width, height);
+            
+            // Создаём один path с несколькими подпутями
+            // Первый путь - основа, остальные - вырезы (рисуются в обратном направлении)
+            const pathData = closedPaths.map((path, pathIdx) => {
+                // Для вырезов (pathIdx > 0) инвертируем порядок вершин
+                const vertices = pathIdx === 0 ? path.vertices : [...path.vertices].reverse();
+                
+                return vertices.map((v, i) => {
+                    const x = ((v.x - minX) * scale + 2).toFixed(2);
+                    const y = ((v.y - minY) * scale + 2).toFixed(2);
+                    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ') + ' Z';
+            }).join(' ');
+            
+            const svg = `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="${pathData}"/></svg>`;
+            
+            exportOutput.value = svg;
+        }
+        
+        function copyToClipboard() {
+            if (exportOutput.value) {
+                exportOutput.select();
+                document.execCommand('copy');
+                alert('Скопировано в буфер!');
+            } else {
+                alert('Сначала экспортируйте SVG!');
+            }
+        }
+        
+        // Инициализация
+        startNewPath();
+        draw();
+    </script>
+</body>
+</html>

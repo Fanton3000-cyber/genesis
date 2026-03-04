@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG Emblem Editor v12.0</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .canvas-area {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        canvas {
+            background: #000;
+            border: 1px solid #555;
+            cursor: crosshair;
+            display: block;
+        }
+        .controls {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        button {
+            background: #3e2723;
+            color: #fff;
+            border: 1px solid #5d4037;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            border-radius: 4px;
+        }
+        button:hover { background: #5d4037; }
+        button.danger { background: #8b0000; border-color: #aa0000; }
+        button.success { background: #006400; border-color: #008000; }
+        button.info { background: #003d80; border-color: #0050a0; }
+        button.active {
+            background: #ff5722;
+            border-color: #ff7043;
+            box-shadow: 0 0 10px #ff5722;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #1a1a1a;
+            color: #0f0;
+            border: 1px solid #444;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .info-box {
+            margin-top: 10px;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .path-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .path-item {
+            padding: 8px;
+            background: #333;
+            margin: 4px 0;
+            border-radius: 3px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid #00e676;
+        }
+        .path-item.closed { border-left-color: #ff5722; }
+        .path-item.hole { border-left-color: #ff0000; background: #3a2222; }
+        .path-item.monochrome { border-left-color: #9c27b0; background: #2a1a2a; }
+        .path-item button { padding: 3px 8px; font-size: 10px; margin: 0; }
+        h1, h2, h3 { color: #ff5722; text-shadow: 0 0 10px #ff5722; }
+        .path-count {
+            background: #ff5722;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .symmetry-controls, .tool-controls, .mode-selector {
+            margin: 10px 0;
+            padding: 10px;
+            background: #222;
+            border-radius: 4px;
+        }
+        .symmetry-controls label, .tool-controls label {
+            display: block;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        .symmetry-controls input[type="checkbox"], .tool-controls input[type="radio"] {
+            margin-right: 8px;
+        }
+        .mode-selector label {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+            cursor: pointer;
+            padding: 8px 15px;
+            background: #333;
+            border-radius: 3px;
+            border: 2px solid transparent;
+        }
+        .mode-selector input[type="radio"] { margin-right: 5px; }
+        .mode-selector label.selected {
+            border-color: #00e676;
+            background: #2a4a3a;
+        }
+        .mode-selector label.hole-mode { border-color: #ff0000; }
+        .mode-selector label.hole-mode.selected { background: #4a2a2a; }
+        .mode-selector label.mono-mode { border-color: #9c27b0; }
+        .mode-selector label.mono-mode.selected { background: #4a2a4a; }
+        .legend {
+            margin: 10px 0;
+            padding: 10px;
+            background: #222;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        .legend-item { display: inline-block; margin: 5px 10px; }
+        .legend-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        .preview-box {
+            margin: 10px 0;
+            padding: 15px;
+            background: #000;
+            border: 2px solid #444;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .preview-box svg { width: 100px; height: 100px; }
+        .shape-tools { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+        .shape-tools button { flex: 1; min-width: 80px; }
+        .cut-status {
+            color: #ff9800;
+            font-size: 10px;
+            margin-top: 5px;
+            padding: 5px;
+            background: #332200;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 SVG Emblem Editor v12.0</h1>
+    <div class="container">
+        <div class="canvas-area">
+            <h2>Холст <span class="path-count" id="pathCount">Путей: 0</span></h2>
+            <canvas id="editorCanvas" width="500" height="500"></canvas>
+            
+            <div class="preview-box">
+                <strong>Предпросмотр:</strong>
+                <div id="svgPreview"></div>
+            </div>
+            
+            <div class="legend">
+                <strong>Легенда:</strong>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #00e676;"></span>
+                    ✅ Контур (1, 2, 3...)
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #ff0000;"></span>
+                    ⛔ Вырез
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #9c27b0;"></span>
+                    💜 Монохром
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #ff9800;"></span>
+                    👻 Зеркальная точка (a1, a2, a3...)
+                </div>
+            </div>
+            
+            <div class="symmetry-controls">
+                <strong>Симметрия:</strong>
+                <label><input type="checkbox" id="symmetryV" onchange="toggleSymmetry()"> ⬌ Вертикальная (V)</label>
+                <label><input type="checkbox" id="symmetryH" onchange="toggleSymmetry()"> ⬍ Горизонтальная (H)</label>
+            </div>
+            
+            <div class="mode-selector">
+                <strong>Тип пути:</strong><br>
+                <label id="mode-contour" class="selected" onclick="setPathMode('contour')">
+                    <input type="radio" name="pathMode" value="contour" checked> 
+                    <span style="color: #00e676;">📄 КОНТУР</span>
+                </label>
+                <label id="mode-hole" class="hole-mode" onclick="setPathMode('hole')">
+                    <input type="radio" name="pathMode" value="hole"> 
+                    <span style="color: #ff0000;">⛔ ВЫРЕЗ</span>
+                </label>
+                <label id="mode-monochrome" class="mono-mode" onclick="setPathMode('monochrome')">
+                    <input type="radio" name="pathMode" value="monochrome"> 
+                    <span style="color: #9c27b0;">💜 МОНОХРОМ</span>
+                </label>
+            </div>
+            
+            <div class="tool-controls">
+                <strong>Инструменты:</strong>
+                <div class="shape-tools">
+                    <button onclick="setTool('path')" id="tool-path" class="active">✏️ Путь</button>
+                    <button onclick="setTool('circle')" id="tool-circle">⭕ Круг</button>
+                    <button onclick="setTool('rectangle')" id="tool-rectangle">⬜ Квадрат</button>
+                    <button onclick="setTool('move')" id="tool-move">✋ Перемещение</button>
+                </div>
+            </div>
+            
+            <div class="cut-status" id="cutStatus">Статус: Ожидание выреза</div>
+            
+            <div class="info-box">
+                <strong>Управление:</strong><br>
+                • ЛКМ — вершина / начать фигуру<br>
+                • ЛКМ на зеркальной точке — объединить с контуром<br>
+                • ЛКМ + Drag — круг/квадрат / переместить точку<br>
+                • Shift — угол 15° / идеальный круг<br>
+                • Двойной клик — замкнуть путь<br>
+                • Enter — применить вырез<br>
+                • Ctrl+Z — отмена<br>
+                • N — новый путь<br>
+                • Delete — удалить путь
+            </div>
+        </div>
+        <div class="controls">
+            <h2>Инструменты</h2>
+            <button onclick="clearCanvas()" class="danger">🗑️ Очистить всё</button>
+            <button onclick="undoLast()" class="danger">↩️ Отменить</button>
+            <button onclick="closePath()" class="info">🔒 Замкнуть путь</button>
+            <button onclick="applyCut()" class="info">✂️ Применить вырез</button>
+            <button onclick="startNewPath()" class="info">➕ Новый путь</button>
+            <button onclick="exportSVG()" class="success">📤 Экспорт SVG</button>
+            <button onclick="copyToClipboard()" class="success">📋 Копировать</button>
+            
+            <h3>Пути:</h3>
+            <div class="path-list" id="pathList"></div>
+            
+            <h3>Экспорт:</h3>
+            <textarea id="exportOutput" placeholder="SVG код..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const pathList = document.getElementById('pathList');
+        const exportOutput = document.getElementById('exportOutput');
+        const pathCount = document.getElementById('pathCount');
+        const svgPreview = document.getElementById('svgPreview');
+        const cutStatus = document.getElementById('cutStatus');
+        
+        let paths = [];
+        let currentPathIndex = -1;
+        let history = [];
+        let historyIndex = -1;
+        
+        const gridSize = 50;
+        const snapDistance = 10;
+        const mergeDistance = 5;
+        const pathColors = ['#00e676', '#ff5722', '#6bb6ff', '#ffd966', '#ff6b6b', '#c0c0c0'];
+        
+        let showSymmetryV = false;
+        let showSymmetryH = false;
+        let currentPathMode = 'contour';
+        let currentTool = 'path';
+        
+        let isDrawing = false;
+        let dragStart = null;
+        let tempShape = null;
+        
+        // Для перемещения вершин
+        let isMovingVertex = false;
+        let movingVertexIndex = -1;
+        let movingPathIndex = -1;
+        
+        function saveHistoryState() {
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            history.push(JSON.parse(JSON.stringify(paths)));
+            historyIndex = history.length - 1;
+            if (history.length > 30) {
+                history.shift();
+                historyIndex--;
+            }
+        }
+        
+        function getCurrentPath() {
+            if (currentPathIndex >= 0 && currentPathIndex < paths.length) {
+                return paths[currentPathIndex];
+            }
+            return null;
+        }
+        
+        function setPathMode(mode) {
+            currentPathMode = mode;
+            document.getElementById('mode-contour').classList.toggle('selected', mode === 'contour');
+            document.getElementById('mode-hole').classList.toggle('selected', mode === 'hole');
+            document.getElementById('mode-monochrome').classList.toggle('selected', mode === 'monochrome');
+            updateCutStatus();
+        }
+        
+        function setTool(tool) {
+            currentTool = tool;
+            document.getElementById('tool-path').classList.toggle('active', tool === 'path');
+            document.getElementById('tool-circle').classList.toggle('active', tool === 'circle');
+            document.getElementById('tool-rectangle').classList.toggle('active', tool === 'rectangle');
+            document.getElementById('tool-move').classList.toggle('active', tool === 'move');
+        }
+        
+        function toggleSymmetry() {
+            showSymmetryV = document.getElementById('symmetryV').checked;
+            showSymmetryH = document.getElementById('symmetryH').checked;
+            draw();
+        }
+        
+        function mirrorVertex(v, mirrorV, mirrorH) {
+            const mirrored = { x: v.x, y: v.y };
+            if (mirrorV) mirrored.x = canvas.width - v.x;
+            if (mirrorH) mirrored.y = canvas.height - v.y;
+            return mirrored;
+        }
+        
+        function getDistance(v1, v2) {
+            return Math.sqrt(Math.pow(v2.x - v1.x, 2) + Math.pow(v2.y - v1.y, 2));
+        }
+        
+        function getLineIntersection(p1, p2, p3, p4) {
+            const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
+            if (det === 0) return null;
+            const lambda = ((p4.y - p3.y) * (p4.x - p1.x) + (p3.x - p4.x) * (p4.y - p1.y)) / det;
+            const gamma = ((p1.y - p2.y) * (p4.x - p1.x) + (p2.x - p1.x) * (p4.y - p1.y)) / det;
+            if ((0 <= lambda && lambda <= 1) && (0 <= gamma && gamma <= 1)) {
+                return {
+                    x: p1.x + lambda * (p2.x - p1.x),
+                    y: p1.y + lambda * (p2.y - p1.y)
+                };
+            }
+            return null;
+        }
+        
+        function isPointInPolygon(point, polygon) {
+            if (polygon.length < 3) return false;
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x, yi = polygon[i].y;
+                const xj = polygon[j].x, yj = polygon[j].y;
+                const intersect = ((yi > point.y) !== (yj > point.y)) &&
+                    (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+        
+        function findIntersections(basePath, cutPath) {
+            const intersections = [];
+            const baseVerts = basePath.vertices;
+            const cutVerts = cutPath.vertices;
+            
+            if (!basePath.isClosed || !cutPath.isClosed) return intersections;
+            
+            for (let i = 0; i < baseVerts.length; i++) {
+                const p1 = baseVerts[i];
+                const p2 = baseVerts[(i + 1) % baseVerts.length];
+                
+                for (let j = 0; j < cutVerts.length; j++) {
+                    const p3 = cutVerts[j];
+                    const p4 = cutVerts[(j + 1) % cutVerts.length];
+                    
+                    const intersection = getLineIntersection(p1, p2, p3, p4);
+                    if (intersection) {
+                        let tooClose = false;
+                        for (let existing of intersections) {
+                            if (getDistance(existing, intersection) < mergeDistance) {
+                                tooClose = true;
+                                break;
+                            }
+                        }
+                        if (!tooClose) {
+                            intersections.push({
+                                ...intersection,
+                                baseSegment: i,
+                                cutSegment: j
+                            });
+                        }
+                    }
+                }
+            }
+            return intersections;
+        }
+        
+        function applyCutToPath(basePath, cutPath) {
+            const intersections = findIntersections(basePath, cutPath);
+            
+            if (intersections.length === 0) {
+                if (cutPath.vertices.length > 0 && isPointInPolygon(cutPath.vertices[0], basePath.vertices)) {
+                    return false;
+                }
+                return false;
+            }
+            
+            intersections.sort((a, b) => {
+                if (a.baseSegment !== b.baseSegment) return a.baseSegment - b.baseSegment;
+                const p1 = basePath.vertices[a.baseSegment];
+                const distA = getDistance(p1, a);
+                const distB = getDistance(p1, b);
+                return distA - distB;
+            });
+            
+            let offset = 0;
+            intersections.forEach(intersection => {
+                const insertIndex = intersection.baseSegment + 1 + offset;
+                basePath.vertices.splice(insertIndex, 0, {
+                    x: intersection.x,
+                    y: intersection.y,
+                    isIntersection: true
+                });
+                offset++;
+            });
+            
+            cutPath.vertices.forEach(v => {
+                if (isPointInPolygon(v, basePath.vertices)) {
+                    basePath.vertices.push({
+                        x: v.x,
+                        y: v.y,
+                        isFromCut: true
+                    });
+                }
+            });
+            
+            basePath.vertices = basePath.vertices.filter(v => {
+                if (v.isFromCut) return true;
+                return !isPointInPolygon(v, cutPath.vertices);
+            });
+            
+            return intersections.length > 0;
+        }
+        
+        function snapToAngle(start, end) {
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const angle = Math.atan2(dy, dx);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const snappedAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12);
+            return {
+                x: start.x + Math.cos(snappedAngle) * distance,
+                y: start.y + Math.sin(snappedAngle) * distance
+            };
+        }
+        
+        function updateCutStatus() {
+            const contourCount = paths.filter(p => p.mode === 'contour' && p.isClosed).length;
+            const holeCount = paths.filter(p => p.mode === 'hole' && p.isClosed).length;
+            
+            if (contourCount === 0) {
+                cutStatus.textContent = 'Статус: Сначала создайте контур';
+                cutStatus.style.color = '#ff5722';
+            } else if (holeCount === 0) {
+                cutStatus.textContent = 'Статус: Создайте вырез (двойной клик для замыкания)';
+                cutStatus.style.color = '#ff9800';
+            } else {
+                cutStatus.textContent = 'Статус: Нажмите Enter или "Применить вырез"';
+                cutStatus.style.color = '#00e676';
+            }
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            
+            if (showSymmetryV) {
+                ctx.strokeStyle = '#ff5722';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2, 0);
+                ctx.lineTo(canvas.width / 2, canvas.height);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            if (showSymmetryH) {
+                ctx.strokeStyle = '#ff5722';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height / 2);
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            paths.forEach((path, pathIdx) => {
+                const color = pathColors[pathIdx % pathColors.length];
+                const isCurrent = pathIdx === currentPathIndex;
+                
+                let strokeColor, fillColor;
+                if (path.mode === 'hole') {
+                    strokeColor = '#ff0000';
+                    fillColor = 'rgba(255, 0, 0, 0.1)';
+                } else if (path.mode === 'monochrome') {
+                    strokeColor = '#9c27b0';
+                    fillColor = 'rgba(156, 39, 176, 0.5)';
+                } else {
+                    strokeColor = color;
+                    fillColor = 'rgba(0, 230, 118, 0.3)';
+                }
+                
+                if (path.vertices.length > 0) {
+                    ctx.strokeStyle = strokeColor;
+                    ctx.lineWidth = isCurrent ? 3 : 2;
+                    ctx.beginPath();
+                    ctx.moveTo(path.vertices[0].x, path.vertices[0].y);
+                    for (let i = 1; i < path.vertices.length; i++) {
+                        ctx.lineTo(path.vertices[i].x, path.vertices[i].y);
+                    }
+                    if (path.isClosed) {
+                        ctx.closePath();
+                        ctx.fillStyle = fillColor;
+                        ctx.fill();
+                    }
+                    ctx.stroke();
+                }
+                
+                path.vertices.forEach((v, i) => {
+                    if (v.isIntersection) {
+                        ctx.fillStyle = '#ff9800';
+                        ctx.beginPath();
+                        ctx.arc(v.x, v.y, 6, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.fillStyle = path.mode === 'hole' ? '#ff0000' : 
+                                       (path.mode === 'monochrome' ? '#9c27b0' : (i === 0 ? '#ff5722' : color));
+                        ctx.beginPath();
+                        ctx.arc(v.x, v.y, isCurrent || (currentTool === 'move' && isMovingVertex && movingPathIndex === pathIdx && movingVertexIndex === i) ? 8 : 4, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        if (isCurrent && currentTool === 'path') {
+                            ctx.fillStyle = '#fff';
+                            ctx.font = '10px Courier New';
+                            ctx.fillText(i + 1, v.x + 8, v.y - 8);
+                        }
+                    }
+                });
+                
+                // Зеркальные вершины с нумерацией a1, a2, a3... и линиями между ними
+                if (isCurrent && currentTool === 'path' && path.mirrorVertices && path.mirrorVertices.length > 0 && (showSymmetryV || showSymmetryH)) {
+                    // Рисуем линии между зеркальными точками
+                    if (path.mirrorVertices.length > 1) {
+                        ctx.strokeStyle = 'rgba(255, 152, 0, 0.5)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([3, 3]);
+                        ctx.beginPath();
+                        ctx.moveTo(path.mirrorVertices[0].x, path.mirrorVertices[0].y);
+                        for (let i = 1; i < path.mirrorVertices.length; i++) {
+                            ctx.lineTo(path.mirrorVertices[i].x, path.mirrorVertices[i].y);
+                        }
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+                    
+                    // Рисуем зеркальные точки с нумерацией
+                    path.mirrorVertices.forEach((v, i) => {
+                        ctx.fillStyle = 'rgba(255, 152, 0, 0.8)';
+                        ctx.beginPath();
+                        ctx.arc(v.x, v.y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Нумерация a1, a2, a3...
+                        ctx.fillStyle = '#ff9800';
+                        ctx.font = 'bold 10px Courier New';
+                        ctx.fillText('a' + (i + 1), v.x + 8, v.y - 8);
+                    });
+                }
+            });
+            
+            if (isDrawing && tempShape) {
+                ctx.strokeStyle = currentPathMode === 'hole' ? '#ff0000' : 
+                                 (currentPathMode === 'monochrome' ? '#9c27b0' : '#00e676');
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                
+                if (currentTool === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(tempShape.cx, tempShape.cy, tempShape.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (currentTool === 'rectangle') {
+                    ctx.strokeRect(tempShape.x, tempShape.y, tempShape.width, tempShape.height);
+                }
+                
+                ctx.setLineDash([]);
+            }
+            
+            updatePathList();
+            updatePathCount();
+            updatePreview();
+            updateCutStatus();
+        }
+        
+        function snapToGridPoint(x, y) {
+            const snappedX = Math.round(x / gridSize) * gridSize;
+            const snappedY = Math.round(y / gridSize) * gridSize;
+            if (Math.abs(x - snappedX) < snapDistance && Math.abs(y - snappedY) < snapDistance) {
+                return { x: snappedX, y: snappedY };
+            }
+            return { x, y };
+        }
+        
+        function findVertexAtPosition(x, y) {
+            for (let pathIdx = 0; pathIdx < paths.length; pathIdx++) {
+                const path = paths[pathIdx];
+                for (let vertIdx = 0; vertIdx < path.vertices.length; vertIdx++) {
+                    const v = path.vertices[vertIdx];
+                    if (getDistance({x, y}, v) < 10) {
+                        return { pathIndex: pathIdx, vertexIndex: vertIdx };
+                    }
+                }
+                // Проверяем зеркальные вершины для объединения
+                if (path.mirrorVertices) {
+                    for (let mirrorIdx = 0; mirrorIdx < path.mirrorVertices.length; mirrorIdx++) {
+                        const v = path.mirrorVertices[mirrorIdx];
+                        if (getDistance({x, y}, v) < 10) {
+                            return { pathIndex: pathIdx, mirrorIndex: mirrorIdx, isMirror: true };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const snapped = snapToGridPoint(x, y);
+            
+            if (currentTool === 'move') {
+                const vertexInfo = findVertexAtPosition(x, y);
+                if (vertexInfo && !vertexInfo.isMirror) {
+                    isMovingVertex = true;
+                    movingVertexIndex = vertexInfo.vertexIndex;
+                    movingPathIndex = vertexInfo.pathIndex;
+                    saveHistoryState();
+                    return;
+                }
+            }
+            
+            // Проверяем клик на зеркальную точку для объединения
+            if (currentTool === 'path') {
+                const vertexInfo = findVertexAtPosition(x, y);
+                if (vertexInfo && vertexInfo.isMirror) {
+                    const path = paths[vertexInfo.pathIndex];
+                    saveHistoryState();
+                    path.vertices.push({ x: path.mirrorVertices[vertexInfo.mirrorIndex].x, y: path.mirrorVertices[vertexInfo.mirrorIndex].y });
+                    path.mirrorVertices.splice(vertexInfo.mirrorIndex, 1);
+                    draw();
+                    return;
+                }
+            }
+            
+            if (currentTool !== 'path') {
+                isDrawing = true;
+                dragStart = snapped;
+                tempShape = { cx: snapped.x, cy: snapped.y, radius: 0, x: snapped.x, y: snapped.y, width: 0, height: 0 };
+            } else {
+                const currentPath = getCurrentPath();
+                if (currentPathIndex < 0 || (currentPath && currentPath.isClosed)) {
+                    startNewPath();
+                }
+                
+                const path = getCurrentPath();
+                if (path && !path.isClosed) {
+                    saveHistoryState();
+                    
+                    let finalPoint = snapped;
+                    if (e.shiftKey && path.vertices.length > 0) {
+                        finalPoint = snapToAngle(path.vertices[path.vertices.length - 1], snapped);
+                        finalPoint = snapToGridPoint(finalPoint.x, finalPoint.y);
+                    }
+                    
+                    let tooClose = false;
+                    for (let v of path.vertices) {
+                        if (getDistance(v, finalPoint) < mergeDistance) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                    if (!tooClose) {
+                        path.vertices.push(finalPoint);
+                        
+                        if (showSymmetryV || showSymmetryH) {
+                            path.mirrorVertices = path.mirrorVertices || [];
+                            if (showSymmetryV && Math.abs(finalPoint.x - canvas.width / 2) > 1) {
+                                path.mirrorVertices.push(mirrorVertex(finalPoint, true, false));
+                            }
+                            if (showSymmetryH && Math.abs(finalPoint.y - canvas.height / 2) > 1) {
+                                path.mirrorVertices.push(mirrorVertex(finalPoint, false, true));
+                            }
+                            if (showSymmetryV && showSymmetryH) {
+                                path.mirrorVertices.push(mirrorVertex(finalPoint, true, true));
+                            }
+                        }
+                    }
+                    draw();
+                }
+            }
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (isMovingVertex && movingPathIndex >= 0 && movingVertexIndex >= 0) {
+                const snapped = snapToGridPoint(x, y);
+                paths[movingPathIndex].vertices[movingVertexIndex] = snapped;
+                
+                if (showSymmetryV || showSymmetryH) {
+                    paths[movingPathIndex].mirrorVertices = [];
+                    if (showSymmetryV && Math.abs(snapped.x - canvas.width / 2) > 1) {
+                        paths[movingPathIndex].mirrorVertices.push(mirrorVertex(snapped, true, false));
+                    }
+                    if (showSymmetryH && Math.abs(snapped.y - canvas.height / 2) > 1) {
+                        paths[movingPathIndex].mirrorVertices.push(mirrorVertex(snapped, false, true));
+                    }
+                    if (showSymmetryV && showSymmetryH) {
+                        paths[movingPathIndex].mirrorVertices.push(mirrorVertex(snapped, true, true));
+                    }
+                }
+                
+                draw();
+                return;
+            }
+            
+            if (!isDrawing) return;
+            
+            let snapped = snapToGridPoint(x, y);
+            
+            if (e.shiftKey && dragStart) {
+                const dx = snapped.x - dragStart.x;
+                const dy = snapped.y - dragStart.y;
+                const maxDist = Math.max(Math.abs(dx), Math.abs(dy));
+                const signX = dx >= 0 ? 1 : -1;
+                const signY = dy >= 0 ? 1 : -1;
+                snapped = { x: dragStart.x + signX * maxDist, y: dragStart.y + signY * maxDist };
+            }
+            
+            if (currentTool === 'circle') {
+                const radius = getDistance(dragStart, snapped);
+                tempShape.cx = dragStart.x;
+                tempShape.cy = dragStart.y;
+                tempShape.radius = radius;
+            } else if (currentTool === 'rectangle') {
+                tempShape.x = Math.min(dragStart.x, snapped.x);
+                tempShape.y = Math.min(dragStart.y, snapped.y);
+                tempShape.width = Math.abs(snapped.x - dragStart.x);
+                tempShape.height = Math.abs(snapped.y - dragStart.y);
+            }
+            
+            draw();
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (isMovingVertex) {
+                isMovingVertex = false;
+                movingVertexIndex = -1;
+                movingPathIndex = -1;
+                return;
+            }
+            
+            if (!isDrawing) return;
+            isDrawing = false;
+            
+            saveHistoryState();
+            
+            const path = {
+                vertices: [],
+                isClosed: true,
+                mode: currentPathMode,
+                mirrorVertices: []
+            };
+            
+            if (currentTool === 'circle' && tempShape.radius > 5) {
+                const segments = 32;
+                for (let i = 0; i < segments; i++) {
+                    const angle = (i / segments) * Math.PI * 2;
+                    path.vertices.push({
+                        x: tempShape.cx + Math.cos(angle) * tempShape.radius,
+                        y: tempShape.cy + Math.sin(angle) * tempShape.radius
+                    });
+                }
+            } else if (currentTool === 'rectangle' && tempShape.width > 5 && tempShape.height > 5) {
+                path.vertices.push({ x: tempShape.x, y: tempShape.y });
+                path.vertices.push({ x: tempShape.x + tempShape.width, y: tempShape.y });
+                path.vertices.push({ x: tempShape.x + tempShape.width, y: tempShape.y + tempShape.height });
+                path.vertices.push({ x: tempShape.x, y: tempShape.y + tempShape.height });
+            }
+            
+            if (path.vertices.length > 0) {
+                paths.push(path);
+                currentPathIndex = paths.length - 1;
+            }
+            
+            tempShape = null;
+            dragStart = null;
+            draw();
+        });
+        
+        canvas.addEventListener('dblclick', () => {
+            const path = getCurrentPath();
+            if (path && !path.isClosed && path.mode === 'hole') {
+                path.isClosed = true;
+                draw();
+            } else if (path && !path.isClosed) {
+                path.isClosed = true;
+                draw();
+            }
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undoLast();
+            } else if (e.key === 'Enter' && currentPathMode === 'hole') {
+                e.preventDefault();
+                applyCut();
+            } else if (e.key === 'n' || e.key === 'N') {
+                startNewPath();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (currentPathIndex >= 0) {
+                    saveHistoryState();
+                    paths.splice(currentPathIndex, 1);
+                    if (currentPathIndex >= paths.length) {
+                        currentPathIndex = paths.length - 1;
+                    }
+                    draw();
+                }
+            } else if (e.key === 'v' || e.key === 'V') {
+                document.getElementById('symmetryV').checked = !showSymmetryV;
+                toggleSymmetry();
+            } else if (e.key === 'h' || e.key === 'H') {
+                document.getElementById('symmetryH').checked = !showSymmetryH;
+                toggleSymmetry();
+            }
+        });
+        
+        function undoLast() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                paths = JSON.parse(JSON.stringify(history[historyIndex]));
+                if (currentPathIndex >= paths.length) {
+                    currentPathIndex = paths.length - 1;
+                }
+                draw();
+            } else if (historyIndex === 0) {
+                paths = [];
+                currentPathIndex = -1;
+                historyIndex = -1;
+                draw();
+            }
+        }
+        
+        function clearCanvas() {
+            if (confirm('Удалить все пути?')) {
+                paths = [];
+                currentPathIndex = -1;
+                history = [];
+                historyIndex = -1;
+                exportOutput.value = '';
+                svgPreview.innerHTML = '';
+                draw();
+            }
+        }
+        
+        function closePath() {
+            const path = getCurrentPath();
+            if (path && path.vertices.length >= 3 && !path.isClosed) {
+                path.isClosed = true;
+                draw();
+            }
+        }
+        
+        function applyCut() {
+            const cutPath = getCurrentPath();
+            if (!cutPath || !cutPath.isClosed || cutPath.mode !== 'hole') {
+                alert('Выберите замкнутый путь выреза!');
+                return;
+            }
+            
+            const basePath = paths.find(p => p.mode === 'contour' && p.isClosed);
+            if (!basePath) {
+                alert('Сначала создайте контур!');
+                return;
+            }
+            
+            saveHistoryState();
+            
+            const applied = applyCutToPath(basePath, cutPath);
+            
+            if (applied) {
+                const cutIndex = paths.indexOf(cutPath);
+                if (cutIndex >= 0) {
+                    paths.splice(cutIndex, 1);
+                    if (currentPathIndex >= paths.length) {
+                        currentPathIndex = paths.length - 1;
+                    }
+                }
+            }
+            
+            draw();
+        }
+        
+        function startNewPath() {
+            saveHistoryState();
+            paths.push({
+                vertices: [],
+                isClosed: false,
+                mode: currentPathMode,
+                mirrorVertices: []
+            });
+            currentPathIndex = paths.length - 1;
+            draw();
+        }
+        
+        function deletePath(index) {
+            if (confirm('Удалить этот путь?')) {
+                saveHistoryState();
+                paths.splice(index, 1);
+                if (currentPathIndex >= paths.length) {
+                    currentPathIndex = paths.length - 1;
+                }
+                draw();
+            }
+        }
+        
+        function selectPath(index) {
+            currentPathIndex = index;
+            draw();
+        }
+        
+        function updatePathCount() {
+            const closedCount = paths.filter(p => p.isClosed).length;
+            const holeCount = paths.filter(p => p.mode === 'hole' && p.isClosed).length;
+            const monoCount = paths.filter(p => p.mode === 'monochrome' && p.isClosed).length;
+            pathCount.textContent = `Путей: ${paths.length} (замкнуто: ${closedCount}, вырезы: ${holeCount}, монохром: ${monoCount})`;
+        }
+        
+        function updatePathList() {
+            pathList.innerHTML = paths.map((path, i) => {
+                let className = path.isClosed ? 'closed' : '';
+                let borderColor = pathColors[i % pathColors.length];
+                let label = '⏳';
+                
+                if (path.mode === 'hole') {
+                    className += ' hole';
+                    borderColor = '#ff0000';
+                    label = path.isClosed ? '⛔ ВЫРЕЗ' : '⏳';
+                } else if (path.mode === 'monochrome') {
+                    className += ' monochrome';
+                    borderColor = '#9c27b0';
+                    label = path.isClosed ? '💜 МОНОХРОМ' : '⏳';
+                } else {
+                    label = path.isClosed ? '✅ КОНТУР' : '⏳';
+                }
+                
+                return `
+                <div class="path-item ${className}" style="border-left-color: ${borderColor}">
+                    <div>
+                        <strong>Путь #${i}</strong> ${label}<br>
+                        <span style="color: #888;">Вершин: ${path.vertices.length}</span>
+                    </div>
+                    <div>
+                        <button onclick="selectPath(${i})">👁️</button>
+                        <button onclick="deletePath(${i})" class="danger">🗑️</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        
+        function updatePreview() {
+            const closedPaths = paths.filter(p => p.isClosed && p.vertices.length >= 3);
+            
+            if (closedPaths.length === 0) {
+                svgPreview.innerHTML = '<span style="color: #888;">Замкните пути</span>';
+                return;
+            }
+            
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            closedPaths.forEach(path => {
+                path.vertices.forEach(v => {
+                    minX = Math.min(minX, v.x);
+                    maxX = Math.max(maxX, v.x);
+                    minY = Math.min(minY, v.y);
+                    maxY = Math.max(maxY, v.y);
+                });
+            });
+            
+            const width = maxX - minX || 1;
+            const height = maxY - minY || 1;
+            const scale = 20 / Math.max(width, height);
+            
+            const contourPaths = closedPaths.filter(p => p.mode === 'contour' || p.mode === 'monochrome');
+            
+            const pathData = contourPaths.map((path, pathIdx) => {
+                return path.vertices.map((v, i) => {
+                    const x = ((v.x - minX) * scale + 2).toFixed(2);
+                    const y = ((v.y - minY) * scale + 2).toFixed(2);
+                    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ') + ' Z';
+            }).join(' ');
+            
+            svgPreview.innerHTML = `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="${pathData}"/></svg>`;
+        }
+        
+        function exportSVG() {
+            const closedPaths = paths.filter(p => p.isClosed && p.vertices.length >= 3);
+            
+            if (closedPaths.length === 0) {
+                alert('Нужно минимум 1 замкнутый путь!');
+                return;
+            }
+            
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            closedPaths.forEach(path => {
+                path.vertices.forEach(v => {
+                    minX = Math.min(minX, v.x);
+                    maxX = Math.max(maxX, v.x);
+                    minY = Math.min(minY, v.y);
+                    maxY = Math.max(maxY, v.y);
+                });
+            });
+            
+            const width = maxX - minX || 1;
+            const height = maxY - minY || 1;
+            const scale = 20 / Math.max(width, height);
+            
+            const contourPaths = closedPaths.filter(p => p.mode === 'contour' || p.mode === 'monochrome');
+            
+            const pathData = contourPaths.map((path, pathIdx) => {
+                return path.vertices.map((v, i) => {
+                    const x = ((v.x - minX) * scale + 2).toFixed(2);
+                    const y = ((v.y - minY) * scale + 2).toFixed(2);
+                    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ') + ' Z';
+            }).join(' ');
+            
+            exportOutput.value = `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="${pathData}"/></svg>`;
+        }
+        
+        function copyToClipboard() {
+            if (exportOutput.value) {
+                exportOutput.select();
+                document.execCommand('copy');
+                alert('Скопировано!');
+            } else {
+                alert('Сначала экспортируйте!');
+            }
+        }
+        
+        startNewPath();
+        draw();
+    </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Project: Rusty Core - Sector Map</title>
+    <style>
+        /* --- БАЗОВЫЕ СТИЛИ (Оставили как было) --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Courier New', Courier, monospace;
+            color: #8c8c8c;
+            user-select: none; /* Чтобы текст не выделялся при кликах */
+        }
+
+        .background {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+            background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000000 100%);
+        }
+
+        .game-interface {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 900px;
+            height: 650px;
+            z-index: 10;
+            background-color: #141414;
+            border: 4px solid #3e2723;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .bolt {
+            position: absolute; width: 12px; height: 12px;
+            background: radial-gradient(circle, #5d4037 30%, #1a1a1a 100%);
+            border-radius: 50%; border: 1px solid #222;
+        }
+        .tl { top: -8px; left: -8px; } .tr { top: -8px; right: -8px; }
+        .bl { bottom: -8px; left: -8px; } .br { bottom: -8px; right: -8px; }
+
+        .header {
+            border-bottom: 2px solid #3e2723;
+            padding-bottom: 10px; margin-bottom: 10px;
+            display: flex; justify-content: space-between;
+            text-transform: uppercase; letter-spacing: 2px;
+            font-size: 14px; color: #a1887f;
+        }
+
+        .status-light {
+            width: 10px; height: 10px; background-color: #ff3d00;
+            border-radius: 50%; display: inline-block;
+            box-shadow: 0 0 8px #ff3d00;
+            animation: blink 2s infinite;
+        }
+
+        /* --- ИГРОВОЙ ЭКРАН (CANVAS) --- */
+        #game-container {
+            flex-grow: 1;
+            background-color: #000;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+            /* Эффект старого монитора */
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .vignette {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            box-shadow: 0 0 150px rgba(0,0,0,0.9) inset;
+            pointer-events: none;
+        }
+
+        /* --- ЭКРАН СТАРТА / МЕНЮ --- */
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+        }
+
+        h1 {
+            color: #d7ccc8;
+            text-shadow: 0 0 10px #ff5722;
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        p { font-size: 14px; color: #888; max-width: 400px; line-height: 1.5; }
+        
+        .blink-text {
+            margin-top: 30px;
+            color: #ff5722;
+            animation: blink 1s infinite;
+            font-weight: bold;
+        }
+
+        @keyframes blink {
+            0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="background"></div>
+
+    <div class="game-interface">
+        <div class="bolt tl"></div><div class="bolt tr"></div>
+        <div class="bolt bl"></div><div class="bolt br"></div>
+
+        <div class="header">
+            <span>System: <span style="color: #ff5722;">ONLINE</span></span>
+            <span>Sector: <span id="sector-display">UNKNOWN</span></span>
+            <span>Threat Level: <span style="color: #ff5722;">HIGH</span></span>
+        </div>
+
+        <div id="game-container">
+            <div class="vignette"></div>
+            <!-- Холст для отрисовки карты -->
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- Экран старта -->
+            <div id="start-screen">
+                <h1>Rusty Core</h1>
+                <p>Вселенная разбита на сектора. Враги эволюционируют.<br>Время течет только тогда, когда действуешь ты.</p>
+                <div class="blink-text">[ НАЖМИ ПРОБЕЛ ДЛЯ ЗАПУСКА ]</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- КОНФИГУРАЦИЯ ---
+        const CONFIG = {
+            starCount: 40,        // Количество звезд
+            sectorCount: 4,       // Количество секторов
+            connectionDistance: 150, // Макс расстояние для связи звезд
+            colors: {
+                star: '#8c8c8c',
+                starActive: '#ff5722',
+                line: '#333',
+                sector1: 'rgba(100, 50, 50, 0.1)', // Сектор А (Красный оттенок)
+                sector2: 'rgba(50, 50, 100, 0.1)', // Сектор Б (Синий оттенок)
+                sector3: 'rgba(50, 100, 50, 0.1)', // Сектор В (Зеленый оттенок)
+                sector4: 'rgba(100, 100, 50, 0.1)' // Сектор Г (Желтый оттенок)
+            }
+        };
+
+        // --- КЛАССЫ ДАННЫХ ---
+
+        class Star {
+            constructor(id, x, y, sectorId) {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.sectorId = sectorId;
+                this.connections = []; // Массив ID звезд, с которыми есть связь
+                this.hasEnemy = false; // Есть ли тут враг
+                this.isPlayer = false; // Тут ли игрок
+            }
+        }
+
+        class Enemy {
+            constructor(starId) {
+                this.currentStarId = starId;
+                this.level = 1;
+                this.type = "Scout";
+            }
+        }
+
+        // --- СОСТОЯНИЕ ИГРЫ ---
+        const state = {
+            isRunning: false,
+            stars: [],
+            enemies: [],
+            playerStarId: null,
+            turn: 1
+        };
+
+        // --- ИНИЦИАЛИЗАЦИЯ ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('start-screen');
+        const sectorDisplay = document.getElementById('sector-display');
+
+        // Подгонка размера Canvas под контейнер
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            if (state.isRunning) drawMap();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Генерация карты
+        function generateMap() {
+            state.stars = [];
+            state.enemies = [];
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            const padding = 50;
+
+            // 1. Создаем звезды
+            for (let i = 0; i < CONFIG.starCount; i++) {
+                const x = Math.random() * (w - padding * 2) + padding;
+                const y = Math.random() * (h - padding * 2) + padding;
+                
+                // Определяем сектор (просто делим карту на 4 части для примера)
+                let sectorId = 0;
+                if (x < w/2 && y < h/2) sectorId = 1;
+                else if (x >= w/2 && y < h/2) sectorId = 2;
+                else if (x < w/2 && y >= h/2) sectorId = 3;
+                else sectorId = 4;
+
+                state.stars.push(new Star(i, x, y, sectorId));
+            }
+
+            // 2. Создаем связи (маршруты)
+            state.stars.forEach(star => {
+                state.stars.forEach(otherStar => {
+                    if (star === otherStar) return;
+                    
+                    const dx = star.x - otherStar.x;
+                    const dy = star.y - otherStar.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+
+                    // Если звезды близко и еще не соединены
+                    if (dist < CONFIG.connectionDistance) {
+                        // Проверяем, нет ли уже такой связи (чтобы не дублировать)
+                        if (!star.connections.includes(otherStar.id)) {
+                            star.connections.push(otherStar.id);
+                            otherStar.connections.push(star.id);
+                        }
+                    }
+                });
+            });
+
+            // 3. Расставляем врагов (пару штук для начала)
+            const enemyCount = 3;
+            for(let i=0; i<enemyCount; i++) {
+                const randomStarIndex = Math.floor(Math.random() * state.stars.length);
+                state.stars[randomStarIndex].hasEnemy = true;
+                state.enemies.push(new Enemy(state.stars[randomStarIndex].id));
+            }
+
+            // 4. Ставим игрока на случайную звезду (без врага)
+            let playerStar;
+            do {
+                const idx = Math.floor(Math.random() * state.stars.length);
+                playerStar = state.stars[idx];
+            } while (playerStar.hasEnemy);
+            
+            playerStar.isPlayer = true;
+            state.playerStarId = playerStar.id;
+            updateUI();
+        }
+
+        // --- ОТРИСОВКА ---
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Рисуем фоны секторов (опционально, для наглядности)
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.fillStyle = CONFIG.colors.sector1; ctx.fillRect(0, 0, w/2, h/2);
+            ctx.fillStyle = CONFIG.colors.sector2; ctx.fillRect(w/2, 0, w/2, h/2);
+            ctx.fillStyle = CONFIG.colors.sector3; ctx.fillRect(0, h/2, w/2, h/2);
+            ctx.fillStyle = CONFIG.colors.sector4; ctx.fillRect(w/2, h/2, w/2, h/2);
+
+            // 2. Рисуем линии (маршруты)
+            ctx.strokeStyle = CONFIG.colors.line;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            state.stars.forEach(star => {
+                star.connections.forEach(connId => {
+                    const target = state.stars.find(s => s.id === connId);
+                    if (target) {
+                        ctx.moveTo(star.x, star.y);
+                        ctx.lineTo(target.x, target.y);
+                    }
+                });
+            });
+            ctx.stroke();
+
+            // 3. Рисуем звезды
+            state.stars.forEach(star => {
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, 6, 0, Math.PI * 2);
+                
+                if (star.isPlayer) {
+                    ctx.fillStyle = CONFIG.colors.starActive;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = CONFIG.colors.starActive;
+                } else if (star.hasEnemy) {
+                    ctx.fillStyle = '#ff0000'; // Враг красный
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = '#ff0000';
+                } else {
+                    ctx.fillStyle = CONFIG.colors.star;
+                    ctx.shadowBlur = 0;
+                }
+                
+                ctx.fill();
+                ctx.shadowBlur = 0; // Сброс тени
+
+                // Рисуем ID звезды (для отладки и понимания)
+                ctx.fillStyle = '#555';
+                ctx.font = '10px Courier New';
+                ctx.fillText(star.id, star.x + 8, star.y - 8);
+            });
+        }
+
+        function updateUI() {
+            const currentStar = state.stars.find(s => s.id === state.playerStarId);
+            if(currentStar) {
+                sectorDisplay.innerText = `SECTOR ${currentStar.sectorId}`;
+                sectorDisplay.style.color = currentStar.sectorId === 1 ? '#a55' : 
+                                            currentStar.sectorId === 2 ? '#55a' : 
+                                            currentStar.sectorId === 3 ? '#5a5' : '#aa5';
+            }
+        }
+
+        // --- УПРАВЛЕНИЕ ---
+        function startGame() {
+            if (state.isRunning) return;
+            state.isRunning = true;
+            startScreen.style.display = 'none';
+            resizeCanvas(); // Чтобы canvas получил правильные размеры
+            generateMap();
+            drawMap();
+            console.log("Game Started. Turn:", state.turn);
+        }
+
+        function handleInput(e) {
+            if (e.code === 'Space') {
+                if (!state.isRunning) {
+                    startGame();
+                } else {
+                    // Здесь будет логика хода (например, перемещение)
+                    // Пока просто логируем
+                    console.log("Player Action. Turn incremented.");
+                    state.turn++;
+                    // В будущем здесь будет вызов enemyTurn()
+                }
+            }
+        }
+
+        window.addEventListener('keydown', handleInput);
+
+        // Первый рендер фона (пустого)
+        resizeCanvas();
+
+    </script>
+</body>
+</html>

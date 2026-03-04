@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Project: Rusty Core - Factions & Economy</title>
+<style>
+/* ===== БАЗОВЫЕ СТИЛИ ===== */
+body, html {
+margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
+background-color: #050505; font-family: 'Courier New', Courier, monospace;
+color: #8c8c8c; user-select: none;
+}
+
+/* ===== ФОНОВЫЕ ЭФФЕКТЫ ===== */
+.background {
+position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+background: radial-gradient(circle at 50% 50%, #2a2a2a 0%, #050505 100%),
+repeating-linear-gradient(45deg, #1a1a1a 0px, #1a1a1a 2px, #0f0f0f 4px, #0f0f0f 6px);
+}
+.background::after {
+content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.08;
+background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+pointer-events: none;
+}
+
+/* ===== ОСНОВНОЙ ИНТЕРФЕЙС ===== */
+.game-interface {
+position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+width: 900px; height: 650px; z-index: 10; background-color: #141414;
+border: 4px solid #3e2723;
+box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9), 0 0 10px rgba(62, 39, 35, 0.5);
+border-radius: 4px; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
+}
+
+/* ===== ДЕКОРАТИВНЫЕ ЭЛЕМЕНТЫ ===== */
+.bolt {
+position: absolute; width: 12px; height: 12px;
+background: radial-gradient(circle, #5d4037 30%, #1a1a1a 100%);
+border-radius: 50%; border: 1px solid #222;
+}
+.tl { top: -8px; left: -8px; } .tr { top: -8px; right: -8px; }
+.bl { bottom: -8px; left: -8px; } .br { bottom: -8px; right: -8px; }
+
+/* ===== ХЕДЕР ===== */
+.header {
+border-bottom: 2px solid #3e2723; padding-bottom: 10px; margin-bottom: 10px;
+display: flex; justify-content: space-between; align-items: center;
+text-transform: uppercase; letter-spacing: 2px; font-size: 14px;
+color: #a1887f; text-shadow: 0 0 5px rgba(161, 136, 127, 0.3);
+}
+.header-left { display: flex; align-items: center; gap: 15px; }
+
+/* ===== КНОПКИ ===== */
+.faction-btn {
+padding: 6px 15px; background: rgba(62, 39, 35, 0.8);
+border: 1px solid #5d4037; border-radius: 3px; color: #a1887f;
+font-family: 'Courier New', Courier, monospace; font-size: 11px;
+text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
+transition: all 0.3s ease;
+}
+.faction-btn:hover {
+background: rgba(100, 60, 50, 0.8); border-color: #ff5722;
+color: #ff5722; box-shadow: 0 0 10px rgba(255, 87, 34, 0.3);
+}
+.faction-btn.active {
+background: rgba(255, 87, 34, 0.3); border-color: #ff5722; color: #ff5722;
+}
+.start-button {
+margin-top: 30px; padding: 15px 40px; font-size: 18px;
+font-family: 'Courier New', Courier, monospace; font-weight: bold;
+text-transform: uppercase; letter-spacing: 3px; color: #00e676;
+background: transparent; border: 2px solid #00e676; border-radius: 4px;
+cursor: pointer; transition: all 0.3s ease;
+text-shadow: 0 0 10px #00e676; box-shadow: 0 0 20px rgba(0, 230, 118, 0.3);
+}
+.start-button:hover {
+background: rgba(0, 230, 118, 0.1);
+box-shadow: 0 0 40px rgba(0, 230, 118, 0.5); transform: scale(1.05);
+}
+.start-button:active { transform: scale(0.98); }
+.start-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.timer-toggle-btn {
+position: fixed; left: 100px; top: 50%; transform: translateY(-50%);
+width: 80px; height: 60px; background: rgba(20, 20, 20, 0.95);
+border: 2px solid #3e2723; border-radius: 6px; cursor: pointer;
+z-index: 100; display: flex; flex-direction: row;
+align-items: center; justify-content: center; gap: 8px;
+transition: all 0.3s ease;
+}
+.timer-toggle-btn:hover {
+background: rgba(40, 40, 40, 0.95); border-color: #00e676;
+box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+}
+.timer-toggle-btn.active {
+border-color: #ff5722; box-shadow: 0 0 20px rgba(255, 87, 34, 0.5);
+}
+
+/* ===== ИНДИКАТОРЫ ===== */
+.status-light {
+width: 10px; height: 10px; background-color: #ff3d00;
+border-radius: 50%; display: inline-block; box-shadow: 0 0 8px #ff3d00;
+transition: all 0.5s ease;
+}
+.status-light.active {
+background-color: #00e676; box-shadow: 0 0 8px #00e676;
+animation: blink 2s infinite;
+}
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes led-pulse {
+0% { box-shadow: inset 0 0 60px rgba(0, 255, 100, 0.05); }
+50% { box-shadow: inset 0 0 90px rgba(0, 255, 100, 0.1); }
+100% { box-shadow: inset 0 0 60px rgba(0, 255, 100, 0.05); }
+}
+
+/* ===== ИГРОВОЙ КОНТЕЙНЕР ===== */
+#game-container {
+flex-grow: 1; background-color: #0b0e0b; border: 1px solid #333;
+position: relative; overflow: hidden;
+box-shadow: inset 0 0 60px rgba(0, 255, 100, 0.05);
+animation: led-pulse 4s infinite ease-in-out; cursor: grab;
+}
+#game-container:active { cursor: grabbing; }
+canvas { display: block; width: 100%; height: 100%; }
+
+/* ===== ИНТЕРФЕЙСНЫЕ ЭЛЕМЕНТЫ ===== */
+.zoom-indicator {
+position: absolute; bottom: 10px; right: 10px;
+background: rgba(0, 0, 0, 0.7); border: 1px solid #444;
+padding: 5px 10px; font-size: 12px; color: #8c8c8c;
+z-index: 15; pointer-events: none;
+}
+.turn-timer {
+position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+width: 300px; height: 20px; background: rgba(0, 0, 0, 0.6);
+border: 2px solid #3e2723; border-radius: 4px; z-index: 15; overflow: hidden;
+}
+.turn-timer-bar {
+height: 100%; background: linear-gradient(90deg, #00e676 0%, #00c853 100%);
+width: 100%; transition: width 0.1s linear; box-shadow: 0 0 10px #00e676;
+}
+.turn-timer-label {
+position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+font-size: 11px; color: #fff; text-shadow: 0 0 5px #000; z-index: 2;
+}
+.turn-counter {
+position: absolute; bottom: 15px; left: 15px;
+background: rgba(0, 0, 0, 0.7); border: 2px solid #3e2723;
+border-radius: 4px; padding: 8px 15px; z-index: 15;
+display: flex; align-items: center; gap: 10px;
+}
+.turn-counter-label {
+font-size: 12px; color: #a1887f;
+text-transform: uppercase; letter-spacing: 1px;
+}
+.turn-counter-value {
+font-size: 20px; font-weight: bold;
+color: #00e676; text-shadow: 0 0 10px #00e676;
+}
+.vignette {
+position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+box-shadow: 0 0 150px rgba(0,0,0,0.9) inset;
+pointer-events: none; z-index: 5;
+}
+
+/* ===== ПАНЕЛЬ ФРАКЦИЙ ===== */
+.faction-panel {
+position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+width: 650px; background: rgba(20, 20, 20, 0.95);
+border: 3px solid #3e2723; border-radius: 6px; padding: 25px;
+z-index: 200; display: none; box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+}
+.faction-panel.active { display: block; }
+.faction-panel-header {
+display: flex; justify-content: space-between; align-items: center;
+margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #3e2723;
+}
+.faction-panel-title {
+font-size: 18px; color: #a1887f; text-transform: uppercase;
+letter-spacing: 2px; text-shadow: 0 0 10px rgba(161, 136, 127, 0.5);
+}
+.faction-panel-close {
+width: 30px; height: 30px; background: #3e2723;
+border: 1px solid #5d4037; border-radius: 3px; color: #a1887f;
+font-size: 18px; cursor: pointer; display: flex;
+align-items: center; justify-content: center; transition: all 0.3s ease;
+}
+.faction-panel-close:hover {
+background: #ff5722; border-color: #ff5722; color: #fff;
+}
+.faction-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+.faction-card {
+background: rgba(30, 30, 30, 0.8); border: 2px solid #3e2723;
+border-radius: 4px; padding: 15px; display: flex;
+gap: 15px; transition: all 0.3s ease; align-items: center;
+}
+.faction-card:hover { border-color: #5d4037; transform: translateX(5px); }
+.faction-emblem {
+width: 50px; height: 50px; background: rgba(0, 0, 0, 0.5);
+border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 4px;
+display: flex; align-items: center; justify-content: center;
+overflow: hidden; flex-shrink: 0;
+}
+.faction-emblem-inner {
+width: 100%; height: 100%;
+display: flex; align-items: center; justify-content: center;
+}
+.faction-emblem svg {
+width: 32px; height: 32px; fill: #ffffff;
+display: block; margin: auto;
+}
+.faction-info { flex-grow: 1; }
+.faction-name {
+font-size: 13px; color: #fff; font-weight: bold;
+text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;
+}
+.faction-stats { font-size: 10px; color: #888; line-height: 1.4; }
+
+/* ===== ПАНЕЛЬ ЛОГОВ ===== */
+.log-panel {
+position: absolute; bottom: 60px; left: 15px;
+width: 400px; max-height: 200px;
+background: rgba(0, 0, 0, 0.85);
+border: 2px solid #3e2723; border-radius: 4px;
+padding: 10px; z-index: 200; display: none;
+overflow-y: auto; font-size: 11px;
+font-family: 'Courier New', Courier, monospace;
+}
+.log-panel.active { display: block; }
+.log-entry {
+margin: 3px 0; padding: 2px 0;
+border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.log-entry.safe { color: #00e676; }
+.log-entry.warning { color: #ff9800; }
+.log-entry.error { color: #ff5722; }
+.log-entry.info { color: #8c8c8c; }
+.log-entry.economy { color: #ffd966; }
+
+/* ===== СТАРТОВЫЙ ЭКРАН ===== */
+#start-screen {
+position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column;
+justify-content: center; align-items: center; z-index: 20; text-align: center;
+}
+h1 { color: #d7ccc8; text-shadow: 0 0 10px #ff5722; font-size: 32px; margin-bottom: 10px; text-transform: uppercase; }
+p { font-size: 14px; color: #888; max-width: 400px; line-height: 1.5; }
+
+/* ===== СЛАЙДЕР ===== */
+.star-slider-container { margin: 30px 0; text-align: center; }
+.star-slider-container label {
+display: block; color: #a1887f; margin-bottom: 15px;
+font-size: 16px; text-transform: uppercase; letter-spacing: 2px;
+}
+.star-slider {
+width: 300px; -webkit-appearance: none; appearance: none;
+height: 6px; background: #3e2723; border-radius: 3px;
+outline: none; cursor: pointer;
+}
+.star-slider::-webkit-slider-thumb {
+-webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+background: #ff5722; border-radius: 50%; cursor: pointer;
+box-shadow: 0 0 10px #ff5722;
+}
+.star-slider::-moz-range-thumb {
+width: 20px; height: 20px; background: #ff5722;
+border-radius: 50%; cursor: pointer;
+box-shadow: 0 0 10px #ff5722; border: none;
+}
+.star-count-display {
+margin-top: 15px; font-size: 24px; color: #ff5722;
+font-weight: bold; text-shadow: 0 0 10px #ff5722;
+}
+.star-legend { margin-top: 20px; display: flex; gap: 20px; font-size: 12px; color: #666; justify-content: center; }
+.star-legend span { display: flex; align-items: center; gap: 8px; }
+.star-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ===== TOOLTIP ===== */
+.capital-tooltip {
+position: absolute; background: rgba(20, 20, 20, 0.95);
+border: 2px solid #ffd966; border-radius: 4px;
+padding: 10px 15px; font-size: 11px; color: #ffd966;
+z-index: 300; pointer-events: none; display: none;
+box-shadow: 0 0 20px rgba(255, 217, 102, 0.3);
+max-width: 320px;
+will-change: left, top;
+transform: translateZ(0);
+}
+.capital-tooltip h4 { margin: 0 0 8px 0; font-size: 12px; color: #fff; text-transform: uppercase; }
+.capital-tooltip .stat { display: flex; justify-content: space-between; margin: 3px 0; gap: 20px; }
+.capital-tooltip .stat-label { color: #8c8c8c; }
+.capital-tooltip .stat-value { color: #00e676; }
+.capital-tooltip .total {
+margin-top: 8px; padding-top: 8px; border-top: 1px solid #ffd966;
+font-weight: bold; color: #ffd966;
+}
+
+/* ===== ДЕКОРАТИВНЫЕ ЭЛЕМЕНТЫ ===== */
+.timer-toggle-icon { width: 24px; height: 24px; fill: #a1887f; }
+.timer-toggle-btn.active .timer-toggle-icon { fill: #ff5722; animation: pulse 1s infinite; }
+.timer-toggle-text { font-size: 9px; color: #a1887f; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+.timer-toggle-btn.active .timer-toggle-text { color: #ff5722; }
+.loading-indicator { display: none; margin-top: 20px; color: #00e676; font-size: 14px; animation: blink 0.5s infinite; }
+.or-divider { margin: 20px 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
+.controls-hint { margin-top: 25px; font-size: 11px; color: #555; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="background"></div>
+<div class="game-interface">
+<div class="bolt tl"></div><div class="bolt tr"></div>
+<div class="bolt bl"></div><div class="bolt br"></div>
+<div class="header">
+<div class="header-left">
+<button class="faction-btn" id="factionBtn">Фракции</button>
+<span>System: <span id="sys-status" style="color: #ff5722;">OFFLINE</span></span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<span>Hull Integrity: <span id="hull-status">100%</span></span>
+<span>Status: <div id="status-light" class="status-light"></div></span>
+</div>
+</div>
+<div id="game-container">
+<div class="vignette"></div>
+<canvas id="gameCanvas"></canvas>
+<div class="zoom-indicator" id="zoom-indicator">Zoom: 100%</div>
+<div class="turn-timer" id="turnTimer">
+<div class="turn-timer-bar" id="turnTimerBar"></div>
+<div class="turn-timer-label">ХОД</div>
+</div>
+<div class="turn-counter">
+<span class="turn-counter-label">ХОД:</span>
+<span class="turn-counter-value" id="turnCounterValue">0</span>
+</div>
+<div class="log-panel" id="logPanel"></div>
+<div class="faction-panel" id="factionPanel">
+<div class="faction-panel-header">
+<span class="faction-panel-title">Отношения с фракциями</span>
+<button class="faction-panel-close" id="factionPanelClose">✕</button>
+</div>
+<div class="faction-grid" id="factionGrid"></div>
+</div>
+<div class="capital-tooltip" id="capitalTooltip"></div>
+<div id="start-screen">
+<h1>Rusty Core</h1>
+<p>Навигационная система готова.<br>Сектора загружены. Враги обнаружены.</p>
+<div class="star-slider-container">
+<label>Количество звёзд в секторе</label>
+<input type="range" min="20" max="260" value="50" class="star-slider" id="starSlider">
+<div class="star-count-display" id="starCountDisplay">50 звёзд</div>
+</div>
+<div class="star-legend">
+<span><div class="star-dot" style="background: #ff6b6b;"></div> Красные (25%)</span>
+<span><div class="star-dot" style="background: #6bb6ff;"></div> Синие (15%)</span>
+<span><div class="star-dot" style="background: #ffd966;"></div> Жёлтые (60%)</span>
+</div>
+<div class="or-divider">— или —</div>
+<button class="start-button" id="startButton">ЗАПУСК</button>
+<div class="loading-indicator" id="loadingIndicator">Генерация сектора...</div>
+<div class="controls-hint">
+<strong>УПРАВЛЕНИЕ:</strong><br>
+ЛКМ + перетягивание — перемещение карты<br>
+Колесико — масштаб<br>
+ПКМ по звезде — перемещение игрока<br>
+<span style="color: #ff5722;">` — логи генерации</span><br>
+<span style="color: #ffd966;">ЛКМ по столице — показать доход</span>
+</div>
+</div>
+</div>
+</div>
+<button class="timer-toggle-btn" id="timerToggleBtn" title="Режим таймера">
+<svg class="timer-toggle-icon" viewBox="0 0 24 24">
+<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+</svg>
+<span class="timer-toggle-text">ТАЙМЕР</span>
+</button>
+
+<script>
+// ============================================================================
+// КОНФИГУРАЦИЯ ИГРЫ
+// ============================================================================
+
+const GameConfig = {
+    // Основные параметры
+    starCount: 50,
+    virtualStarCount: 100,
+    minStarDistance: 50,
+    maxConnections: 5,
+    connectionRange: 280,
+    boundaryMargin: 100,
+    virtualStarDistance: 20,
+    maxRouteIntersections: 0,
+    
+    // Параметры карты
+    mapShapePoints: { min: 7, max: 14 },
+    mapShapeIrregularity: 0.5,
+    mapUniverseSize: 3000,
+    
+    // Параметры игрока
+    playerOrbitRadius: 15,
+    playerOrbitSpeed: 0.001,
+    playerMoveSpeed: 0.15,
+    
+    // Таймер и ходы
+    turnTimeLimit: 10000,
+    capitalPulseInterval: 9000,
+    capitalPulseDuration: 5000,
+    
+    // Распределение звезд (проценты)
+    starDistribution: {
+        yellow: 0.60,
+        red: 0.25,
+        blue: 0.15
+    },
+    
+    // Экономика
+    economy: {
+        baseIncomePerTerritory: 10,
+        starBonusPercent: 2
+    },
+    
+    // Цвета игры
+    colors: {
+        starActive: '#ff9800',
+        starRed: '#ff6b6b',
+        starBlue: '#6bb6ff',
+        starYellow: '#ffd966',
+        player: '#00e676',
+        line: '#555',
+        lineBright: '#888',
+        lineAvailable: 'rgba(0, 230, 118, 0.6)',
+        sectorBorder: 'rgba(140, 140, 140, 0.3)',
+        deepSpace: 'rgba(3, 5, 10, 0.95)',
+        boundaryLine: 'rgba(120, 160, 200, 0.4)',
+        emblemOverlay: 'rgba(255, 255, 255, 0.08)'
+    }
+};
+
+const FactionConfig = {
+    count: 6,
+    colors: [
+        { main: 'rgba(255, 100, 100, 0.15)', border: 'rgba(255, 100, 100, 0.7)' },
+        { main: 'rgba(100, 150, 255, 0.15)', border: 'rgba(100, 150, 255, 0.7)' },
+        { main: 'rgba(100, 255, 150, 0.15)', border: 'rgba(100, 255, 150, 0.7)' },
+        { main: 'rgba(255, 200, 100, 0.15)', border: 'rgba(255, 200, 100, 0.7)' },
+        { main: 'rgba(200, 100, 255, 0.15)', border: 'rgba(200, 100, 255, 0.7)' },
+        { main: 'rgba(255, 100, 200, 0.15)', border: 'rgba(255, 100, 200, 0.7)' }
+    ]
+};
+
+// ============================================================================
+// ШАБЛОНЫ ДЛЯ ГЕНЕРАЦИИ
+// ============================================================================
+
+const FactionNameTemplates = [
+    { prefix: 'Железный', gender: 'm' }, { prefix: 'Красный', gender: 'm' },
+    { prefix: 'Звёздный', gender: 'm' }, { prefix: 'Тёмный', gender: 'm' },
+    { prefix: 'Вольный', gender: 'm' }, { prefix: 'Имперский', gender: 'm' },
+    { prefix: 'Древний', gender: 'm' }, { prefix: 'Угасший', gender: 'm' },
+    { prefix: 'Вечный', gender: 'm' }, { prefix: 'Павший', gender: 'm' },
+    { prefix: 'Восставший', gender: 'm' }, { prefix: 'Проклятый', gender: 'm' },
+    { prefix: 'Забытый', gender: 'm' }, { prefix: 'Тайный', gender: 'm' },
+    { prefix: 'Скрытый', gender: 'm' }, { prefix: 'Кровавая', gender: 'f' },
+    { prefix: 'Звёздная', gender: 'f' }, { prefix: 'Тёмная', gender: 'f' },
+    { prefix: 'Угасшая', gender: 'f' }, { prefix: 'Вечная', gender: 'f' },
+    { prefix: 'Павшая', gender: 'f' }, { prefix: 'Восставшая', gender: 'f' },
+    { prefix: 'Тайная', gender: 'f' }, { prefix: 'Золотая', gender: 'f' },
+    { prefix: 'Серебряная', gender: 'f' }, { prefix: 'Тёмное', gender: 'n' },
+    { prefix: 'Звёздное', gender: 'n' }, { prefix: 'Вольное', gender: 'n' },
+    { prefix: 'Угасшее', gender: 'n' }, { prefix: 'Вечное', gender: 'n' },
+    { prefix: 'Павшее', gender: 'n' }, { prefix: 'Восставшее', gender: 'n' },
+    { prefix: 'Тайное', gender: 'n' }, { root: 'Альянс', gender: 'm' },
+    { root: 'Орден', gender: 'm' }, { root: 'Клан', gender: 'm' },
+    { root: 'Союз', gender: 'm' }, { root: 'Синдикат', gender: 'm' },
+    { root: 'Легион', gender: 'm' }, { root: 'Корпус', gender: 'm' },
+    { root: 'Бастион', gender: 'm' }, { root: 'Форпост', gender: 'm' },
+    { root: 'Ковенант', gender: 'm' }, { root: 'Пакт', gender: 'm' },
+    { root: 'Трибунал', gender: 'm' }, { root: 'Культ', gender: 'm' },
+    { root: 'Храм', gender: 'm' }, { root: 'Престол', gender: 'm' },
+    { root: 'Шторм', gender: 'm' }, { root: 'Вихрь', gender: 'm' },
+    { root: 'Пламень', gender: 'm' }, { root: 'Мрак', gender: 'm' },
+    { root: 'Лига', gender: 'f' }, { root: 'Империя', gender: 'f' },
+    { root: 'Гегемония', gender: 'f' }, { root: 'Федерация', gender: 'f' },
+    { root: 'Династия', gender: 'f' }, { root: 'Община', gender: 'f' },
+    { root: 'Гвардия', gender: 'f' }, { root: 'Стража', gender: 'f' },
+    { root: 'Вера', gender: 'f' }, { root: 'Истина', gender: 'f' },
+    { root: 'Доблесть', gender: 'f' }, { root: 'Честь', gender: 'f' },
+    { root: 'Слава', gender: 'f' }, { root: 'Мощь', gender: 'f' },
+    { root: 'Сила', gender: 'f' }, { root: 'Воля', gender: 'f' },
+    { root: 'Кровь', gender: 'f' }, { root: 'Сталь', gender: 'f' },
+    { root: 'Тень', gender: 'f' }, { root: 'Ночь', gender: 'f' },
+    { root: 'Заря', gender: 'f' }, { root: 'Братство', gender: 'n' },
+    { root: 'Содружество', gender: 'n' }, { root: 'Единство', gender: 'n' },
+    { root: 'Величие', gender: 'n' }, { root: 'Могущество', gender: 'n' },
+    { root: 'Бессмертие', gender: 'n' }, { root: 'Возрождение', gender: 'n' },
+    { root: 'Наследие', gender: 'n' }, { root: 'Превосходство', gender: 'n' },
+    { root: 'Господство', gender: 'n' }, { root: 'Владычество', gender: 'n' },
+    { root: 'Царство', gender: 'n' }
+];
+
+const FactionEmblems = [
+    `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="M 12.99 6.36 L 12.15 9.13 L 15.05 9.13 L 12.93 11.71 L 16.07 15.08 L 20.20 10.84 L 17.96 6.23 Z M 11.24 11.13 L 15.31 15.66 L 13.74 17.87 L 13.74 22.00 L 4.79 22.00 L 4.85 17.76 L 2.00 14.79 L 2.41 9.44 L 5.55 10.26 L 6.33 12.04 L 10.37 12.23 Z M 2.93 8.34 L 5.49 9.50 L 5.49 5.20 L 6.30 5.20 L 6.33 9.13 L 6.88 11.07 L 8.80 11.13 L 8.98 4.62 L 10.14 4.73 L 9.67 11.19 L 10.60 11.30 L 11.30 9.97 L 12.47 5.37 L 13.34 5.37 L 13.63 4.62 L 14.50 4.67 L 14.50 5.55 L 17.23 5.55 L 16.77 3.34 L 15.26 2.47 L 13.98 3.69 L 12.35 2.00 L 10.31 2.52 L 9.73 3.98 L 9.27 2.64 L 7.06 2.70 L 5.95 4.09 L 4.38 3.10 L 2.76 4.73 Z"/></svg>`,
+    `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="M18.14 7.81L18.10 18.43L19.18 19.04L19.35 20.58L16.08 20.67L12.39 22.00L8.57 20.63L5.00 20.54L5.34 19.08L6.55 18.56L6.51 7.81L6.63 6.68L6.96 5.59L7.49 4.58L8.22 3.70L9.10 2.98L10.10 2.44L11.19 2.11L12.32 2.00L13.46 2.11L14.55 2.44L15.55 2.98L16.43 3.70L17.16 4.58L17.69 5.59L18.02 6.68ZM15.91 11.90L14.32 15.08L12.78 16.33L12.60 10.66L14.47 12.11L13.38 9.93L15.65 8.68L13.16 8.60L12.35 6.15L11.74 8.60L9.34 8.73L11.31 9.97L10.18 12.11L12.09 10.66L11.87 16.29L10.58 15.26L8.95 11.82L9.64 16.37L11.83 18.31L7.53 18.31L7.36 8.64L7.58 6.66L8.78 4.52L10.18 3.51L12.35 2.93L14.47 3.51L15.87 4.56L16.94 6.36L17.29 8.60L17.29 18.31L12.78 18.31L15.10 16.03Z"/></svg>`,
+    `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="M 7.34 22.00 L 12.58 16.76 L 8.56 12.54 L 12.54 7.74 L 7.30 2.00 L 2.00 7.63 L 6.20 12.61 L 2.09 16.76 Z M 7.34 14.13 L 9.96 16.76 L 7.34 19.38 L 4.71 16.76 Z M 7.35 4.73 L 10.08 7.71 L 7.35 10.75 L 4.62 7.61 Z"/></svg>`,
+    `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="M13.17 2.00L17.66 2.89L20.62 8.05L19.92 14.18L21.30 15.41L20.35 16.97L17.96 17.76L17.66 20.95L16.56 21.68L15.88 21.19L15.65 17.98L14.84 18.12L14.48 21.32L13.67 21.91L13.17 22.00L12.63 21.91L11.82 21.32L11.46 18.12L10.64 17.98L10.42 21.19L9.74 21.68L8.63 20.95L8.34 17.76L6.08 16.97L5.00 15.41L6.38 14.18L5.68 8.05L8.63 2.89ZM14.71 13.83L16.51 14.55L19.00 13.78L19.92 11.92L18.36 10.71L16.38 10.53L15.07 11.39ZM12.09 13.78L11.64 11.39L10.46 10.62L8.97 10.40L7.98 8.28L7.53 11.26L6.38 11.92L7.35 13.92L8.63 14.18L10.89 16.43L10.24 14.55Z"/></svg>`,
+    `<svg viewBox="0 0 24 24" fill-rule="evenodd"><path d="M 11.98 5.21 L 15.18 2.11 L 19.50 2.00 L 22.00 7.00 L 20.98 12.31 L 12.00 19.50 L 3.03 12.31 L 2.00 7.00 L 4.50 2.00 L 8.82 2.11 Z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4l6 13H6L12 6z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M6 2v6l4 4-4 4v6h12v-6l-4-4 4-4V2H6zm2 2h8v3.5L13.5 10 16 12.5V16H8v-3.5L10.5 10 8 7.5V4z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`,
+    `<svg viewBox="0 0 24 24"><path d="M12 2L2 12l10 10 10-10L12 2zm0 3.5l6.5 6.5-6.5 6.5-6.5-6.5L12 5.5z"/></svg>`
+];
+
+// ============================================================================
+// УТИЛИТЫ
+// ============================================================================
+
+const MathUtils = {
+    distance(x1, y1, x2, y2) {
+        return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    },
+    
+    lineIntersection(p1, p2, p3, p4) {
+        const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
+        if (det === 0) return false;
+        
+        const lambda = ((p4.y - p3.y) * (p4.x - p1.x) + (p3.x - p4.x) * (p4.y - p1.y)) / det;
+        const gamma = ((p1.y - p2.y) * (p4.x - p1.x) + (p2.x - p1.x) * (p4.y - p1.y)) / det;
+        
+        return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+    },
+    
+    pointInPolygon(point, polygon) {
+        if (polygon.length < 3) return true;
+        
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i].x, yi = polygon[i].y;
+            const xj = polygon[j].x, yj = polygon[j].y;
+            
+            const intersect = ((yi > point.y) !== (yj > point.y)) &&
+                (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+            
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+};
+
+// ============================================================================
+// УПРАВЛЕНИЕ СОСТОЯНИЕМ ИГРЫ
+// ============================================================================
+
+const GameState = {
+    isRunning: false,
+    isGenerating: false,
+    stars: [],
+    virtualStars: [],
+    bgStars: [],
+    boundaryEdges: [],
+    routeLines: [],
+    mapShapePolygon: [],
+    mapBounds: { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 },
+    universeBounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 },
+    time: 0,
+    lastPulseTime: 0,
+    hull: 100,
+    starCount: 50,
+    playerStarId: null
+};
+
+const PlayerState = {
+    currentStarId: null,
+    targetStarId: null,
+    orbitAngle: 0,
+    position: { x: 0, y: 0 },
+    isMoving: false,
+    moveProgress: 0,
+    moveDistance: 0,
+    originStarId: null,
+    startPos: { x: 0, y: 0 },
+    targetOrbitPoint: { x: 0, y: 0 }
+};
+
+const CameraState = {
+    x: 0,
+    y: 0,
+    zoom: 1,
+    minZoom: 0.4,
+    maxZoom: 4,
+    isDragging: false,
+    lastMouseX: 0,
+    lastMouseY: 0
+};
+
+const TimerState = {
+    current: GameConfig.turnTimeLimit,
+    max: GameConfig.turnTimeLimit,
+    isRunning: false,
+    alwaysRun: false,
+    turnCount: 0
+};
+
+const FactionsState = {
+    list: [],
+    panelOpen: false
+};
+
+// ============================================================================
+// КЛАССЫ МОДЕЛЕЙ
+// ============================================================================
+
+class Star {
+    constructor(id, x, y, isVirtual = false) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.isVirtual = isVirtual;
+        this.connections = [];
+        this.isPlayer = false;
+        this.isCapital = false;
+        this.isFalseCapital = false;
+        this.factionId = null;
+        this.assigned = false;
+        this.angle = Math.random() * Math.PI * 2;
+        this.brightness = 0.7 + Math.random() * 0.3;
+        this.starType = 'yellow';
+        this.voronoiCell = [];
+        this.sectorColor = '';
+    }
+}
+
+// ============================================================================
+// СИСТЕМА ЛОГИРОВАНИЯ
+// ============================================================================
+
+const Logger = {
+    logs: [],
+    
+    add(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        this.logs.push({ time: timestamp, message, type });
+        if (this.logs.length > 50) this.logs.shift();
+        this.updateUI();
+    },
+    
+    clear() {
+        this.logs = [];
+        this.updateUI();
+    },
+    
+    updateUI() {
+        const logPanel = document.getElementById('logPanel');
+        if (!logPanel) return;
+        logPanel.innerHTML = this.logs.map(log =>
+            `<div class="log-entry ${log.type}">[${log.time}] ${log.message}</div>`
+        ).join('');
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+};
+
+// ============================================================================
+// СИСТЕМА ФРАКЦИЙ
+// ============================================================================
+
+const FactionSystem = {
+    generateName() {
+        const prefixes = FactionNameTemplates.filter(t => t.prefix && !t.root);
+        const prefixObj = prefixes[Math.floor(Math.random() * prefixes.length)];
+        const matchingRoots = FactionNameTemplates.filter(t => t.root && t.gender === prefixObj.gender);
+        const rootObj = matchingRoots[Math.floor(Math.random() * matchingRoots.length)];
+        return `${prefixObj.prefix} ${rootObj.root}`;
+    },
+    
+    initialize() {
+        FactionsState.list = [];
+        const usedNames = new Set();
+        const usedEmblems = new Set();
+        
+        for (let i = 0; i < FactionConfig.count; i++) {
+            let name;
+            let attempts = 0;
+            do {
+                name = this.generateName();
+                attempts++;
+            } while (usedNames.has(name) && attempts < 10);
+            usedNames.add(name);
+            
+            let emblemIndex;
+            do {
+                emblemIndex = Math.floor(Math.random() * FactionEmblems.length);
+            } while (usedEmblems.has(emblemIndex) && usedEmblems.size < FactionEmblems.length);
+            usedEmblems.add(emblemIndex);
+            
+            FactionsState.list.push({
+                id: i,
+                name,
+                color: FactionConfig.colors[i],
+                starCount: 0,
+                spawnStarId: null,
+                emblem: FactionEmblems[emblemIndex],
+                accounts: []
+            });
+        }
+        
+        Logger.add(`Инициализировано ${FactionConfig.count} фракций`, 'info');
+    },
+    
+    updatePanel() {
+        const factionGrid = document.getElementById('factionGrid');
+        if (!factionGrid) return;
+        
+        factionGrid.innerHTML = '';
+        
+        FactionsState.list.forEach(faction => {
+            const starCount = GameState.stars.filter(s => s.factionId === faction.id).length;
+            const totalCoins = faction.accounts.reduce((sum, acc) => sum + acc.coins, 0);
+            const accountCount = faction.accounts.length;
+            
+            const card = document.createElement('div');
+            card.className = 'faction-card';
+            card.innerHTML = `
+                <div class="faction-emblem" style="border-color: ${faction.color.border}">
+                    <div class="faction-emblem-inner" style="background: ${faction.color.main}">
+                        ${faction.emblem}
+                    </div>
+                </div>
+                <div class="faction-info">
+                    <div class="faction-name">${faction.name}</div>
+                    <div class="faction-stats">
+                        <div>🌟 Звёзд: ${starCount}</div>
+                        <div><span style="color: #ffd966;">$</span> Монет: ${totalCoins.toLocaleString()}</div>
+                        <div>📊 Счетов: ${accountCount}</div>
+                    </div>
+                </div>
+            `;
+            
+            factionGrid.appendChild(card);
+        });
+    }
+};
+
+// ============================================================================
+// СИСТЕМА ГЕНЕРАЦИИ КАРТЫ
+// ============================================================================
+
+const MapGenerator = {
+    generateUniverseShape() {
+        const centerX = 0, centerY = 0;
+        const universeSize = GameConfig.mapUniverseSize;
+        const baseRadius = universeSize / 2;
+        const numPoints = Math.floor(Math.random() * 
+            (GameConfig.mapShapePoints.max - GameConfig.mapShapePoints.min + 1)) + GameConfig.mapShapePoints.min;
+        const irregularity = GameConfig.mapShapeIrregularity;
+        
+        const polygon = [];
+        for (let i = 0; i < numPoints; i++) {
+            const baseAngle = (Math.PI * 2 * i / numPoints);
+            const radiusVariation = 0.7 + Math.random() * 0.3 * irregularity;
+            const radius = baseRadius * radiusVariation;
+            const angleVariation = (Math.random() - 0.5) * irregularity * 0.5;
+            
+            polygon.push({
+                x: centerX + Math.cos(baseAngle + angleVariation) * radius,
+                y: centerY + Math.sin(baseAngle + angleVariation) * radius
+            });
+        }
+        
+        polygon.sort((a, b) => {
+            const angleA = Math.atan2(a.y - centerY, a.x - centerX);
+            const angleB = Math.atan2(b.y - centerY, b.x - centerX);
+            return angleA - angleB;
+        });
+        
+        GameState.mapShapePolygon = polygon;
+        
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        polygon.forEach(p => {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+            minY = Math.min(minY, p.y);
+            maxY = Math.max(maxY, p.y);
+        });
+        
+        const padding = 100;
+        GameState.universeBounds = { 
+            minX: minX - padding, 
+            maxX: maxX + padding, 
+            minY: minY - padding, 
+            maxY: maxY + padding 
+        };
+    },
+    
+    generateStarsInUniverse() {
+        const polygon = GameState.mapShapePolygon;
+        const bounds = GameState.universeBounds;
+        
+        if (polygon.length < 3) return;
+        
+        const insideCount = Math.floor(GameState.starCount * 0.8);
+        let attempts = 0;
+        const maxAttempts = GameState.starCount * 500;
+        
+        while (GameState.stars.length < insideCount && attempts < maxAttempts) {
+            const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+            const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+            
+            if (!MathUtils.pointInPolygon({x, y}, polygon)) {
+                attempts++;
+                continue;
+            }
+            
+            let tooClose = false;
+            for (let star of GameState.stars) {
+                if (MathUtils.distance(star.x, star.y, x, y) < GameConfig.minStarDistance) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            
+            if (!tooClose) {
+                GameState.stars.push(new Star(GameState.stars.length, x, y, false));
+            }
+            
+            attempts++;
+        }
+    },
+    
+    generateSpawnPoints() {
+        Logger.add('=== Генерация точек спавна фракций ===', 'info');
+        
+        const availableStars = [...GameState.stars];
+        
+        FactionsState.list.forEach((faction, factionIndex) => {
+            if (availableStars.length === 0) return;
+            
+            let spawnStar = null;
+            
+            if (factionIndex === 0) {
+                const randomIndex = Math.floor(Math.random() * availableStars.length);
+                spawnStar = availableStars[randomIndex];
+                Logger.add(`${faction.name}: точка спавна выбрана случайно`, 'info');
+            } else {
+                let bestDistance = -1;
+                
+                for (let star of availableStars) {
+                    let minDistToSpawns = Infinity;
+                    
+                    for (let i = 0; i < factionIndex; i++) {
+                        const otherFaction = FactionsState.list[i];
+                        if (otherFaction.spawnStarId !== null) {
+                            const spawnStar = GameState.stars.find(s => s.id === otherFaction.spawnStarId);
+                            if (spawnStar) {
+                                const dist = MathUtils.distance(
+                                    star.x, star.y, 
+                                    spawnStar.x, spawnStar.y
+                                );
+                                minDistToSpawns = Math.min(minDistToSpawns, dist);
+                            }
+                        }
+                    }
+                    
+                    if (minDistToSpawns > bestDistance) {
+                        bestDistance = minDistToSpawns;
+                        spawnStar = star;
+                    }
+                }
+                
+                if (!spawnStar && availableStars.length > 0) {
+                    spawnStar = availableStars[0];
+                }
+            }
+            
+            if (spawnStar) {
+                spawnStar.factionId = faction.id;
+                spawnStar.assigned = true;
+                faction.spawnStarId = spawnStar.id;
+                
+                const starIndex = availableStars.indexOf(spawnStar);
+                if (starIndex > -1) availableStars.splice(starIndex, 1);
+                
+                Logger.add(`${faction.name}: точка спавна на звезде #${spawnStar.id}`, 'info');
+            }
+        });
+    },
+    
+    spreadInfluenceFromSpawns() {
+        const availableStars = GameState.stars.filter(s => !s.assigned);
+        const queue = [];
+        
+        GameState.stars.forEach(star => { 
+            if (star.assigned) queue.push(star); 
+        });
+        
+        while (queue.length > 0 && availableStars.length > 0) {
+            const currentStar = queue.shift();
+            
+            currentStar.connections.forEach(connId => {
+                const neighbor = GameState.stars.find(s => s.id === connId);
+                if (neighbor && !neighbor.assigned) {
+                    neighbor.factionId = currentStar.factionId;
+                    neighbor.assigned = true;
+                    queue.push(neighbor);
+                }
+            });
+        }
+        
+        availableStars.forEach(star => {
+            let nearestFaction = null;
+            let nearestDist = Infinity;
+            
+            FactionsState.list.forEach(faction => {
+                if (faction.spawnStarId !== null) {
+                    const spawnStar = GameState.stars.find(s => s.id === faction.spawnStarId);
+                    if (spawnStar) {
+                        const dist = MathUtils.distance(
+                            star.x, star.y, 
+                            spawnStar.x, spawnStar.y
+                        );
+                        if (dist < nearestDist) { 
+                            nearestDist = dist; 
+                            nearestFaction = faction; 
+                        }
+                    }
+                }
+            });
+            
+            if (nearestFaction) {
+                star.factionId = nearestFaction.id;
+                star.assigned = true;
+            }
+        });
+    },
+    
+    assignStarTypes() {
+        const totalStars = GameState.stars.length;
+        let redCount = Math.max(1, Math.floor(totalStars * GameConfig.starDistribution.red));
+        let blueCount = Math.max(1, Math.floor(totalStars * GameConfig.starDistribution.blue));
+        let yellowCount = totalStars - redCount - blueCount;
+        
+        const types = [];
+        for (let i = 0; i < redCount; i++) types.push('red');
+        for (let i = 0; i < blueCount; i++) types.push('blue');
+        for (let i = 0; i < yellowCount; i++) types.push('yellow');
+        
+        for (let i = types.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [types[i], types[j]] = [types[j], types[i]];
+        }
+        
+        GameState.stars.forEach((star, i) => star.starType = types[i]);
+    },
+    
+    generateVirtualStars() {
+        const bounds = GameState.universeBounds;
+        const mapWidth = bounds.maxX - bounds.minX;
+        const mapHeight = bounds.maxY - bounds.minY;
+        
+        for (let i = 0; i < GameConfig.virtualStarCount; i++) {
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+            const offset = 150 + Math.random() * 100;
+            
+            switch(side) {
+                case 0: 
+                    x = bounds.minX + Math.random() * mapWidth; 
+                    y = bounds.minY - offset; 
+                    break;
+                case 1: 
+                    x = bounds.maxX + offset; 
+                    y = bounds.minY + Math.random() * mapHeight; 
+                    break;
+                case 2: 
+                    x = bounds.minX + Math.random() * mapWidth; 
+                    y = bounds.maxY + offset; 
+                    break;
+                case 3: 
+                    x = bounds.minX - offset; 
+                    y = bounds.minY + Math.random() * mapHeight; 
+                    break;
+            }
+            
+            GameState.virtualStars.push(new Star(
+                GameState.stars.length + i, 
+                x, 
+                y, 
+                true
+            ));
+        }
+    },
+    
+    computeVoronoi() {
+        const bounds = GameState.universeBounds;
+        const allStars = [...GameState.stars, ...GameState.virtualStars];
+        
+        allStars.forEach(star => {
+            star.voronoiCell = [
+                {x: bounds.minX - 1000, y: bounds.minY - 1000},
+                {x: bounds.maxX + 1000, y: bounds.minY - 1000},
+                {x: bounds.maxX + 1000, y: bounds.maxY + 1000},
+                {x: bounds.minX - 1000, y: bounds.maxY + 1000}
+            ];
+        });
+        
+        allStars.forEach(star => {
+            allStars.forEach(other => {
+                if (star === other) return;
+                this.clipCellByBisector(star, other);
+            });
+        });
+        
+        this.buildBoundaryFromEdges(allStars);
+        
+        if (GameState.boundaryEdges.length > 0) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            
+            GameState.boundaryEdges.forEach(edge => {
+                minX = Math.min(minX, edge.start.x, edge.end.x);
+                maxX = Math.max(maxX, edge.start.x, edge.end.x);
+                minY = Math.min(minY, edge.start.y, edge.end.y);
+                maxY = Math.max(maxY, edge.start.y, edge.end.y);
+            });
+            
+            GameState.mapBounds = { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+        }
+    },
+    
+    clipCellByBisector(star, other) {
+        const midX = (star.x + other.x) / 2;
+        const midY = (star.y + other.y) / 2;
+        const nx = star.x - other.x;
+        const ny = star.y - other.y;
+        
+        const newCell = [];
+        const cell = star.voronoiCell;
+        
+        if (cell.length === 0) return;
+        
+        for (let i = 0; i < cell.length; i++) {
+            const curr = cell[i];
+            const next = cell[(i + 1) % cell.length];
+            
+            const currDist = (curr.x - midX) * nx + (curr.y - midY) * ny;
+            const nextDist = (next.x - midX) * nx + (next.y - midY) * ny;
+            
+            if (currDist >= -0.001) newCell.push({x: curr.x, y: curr.y});
+            
+            if ((currDist >= -0.001 && nextDist < -0.001) || (currDist < -0.001 && nextDist >= -0.001)) {
+                const t = currDist / (currDist - nextDist);
+                newCell.push({ 
+                    x: curr.x + t * (next.x - curr.x), 
+                    y: curr.y + t * (next.y - curr.y) 
+                });
+            }
+        }
+        
+        star.voronoiCell = newCell;
+    },
+    
+    buildBoundaryFromEdges(allStars) {
+        GameState.boundaryEdges = [];
+        const edgeSet = new Set();
+        
+        GameState.stars.forEach(realStar => {
+            if (!realStar.voronoiCell || realStar.voronoiCell.length < 3) return;
+            
+            for (let i = 0; i < realStar.voronoiCell.length; i++) {
+                const p1 = realStar.voronoiCell[i];
+                const p2 = realStar.voronoiCell[(i + 1) % realStar.voronoiCell.length];
+                
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+                
+                let nearestStar = null;
+                let nearestDist = Infinity;
+                
+                allStars.forEach(other => {
+                    if (other === realStar) return;
+                    const d = MathUtils.distance(other.x, other.y, midX, midY);
+                    if (d < nearestDist) { 
+                        nearestDist = d; 
+                        nearestStar = other; 
+                    }
+                });
+                
+                if (nearestStar && nearestStar.isVirtual) {
+                    const key = `${Math.round(p1.x)},${Math.round(p1.y)}-${Math.round(p2.x)},${Math.round(p2.y)}`;
+                    if (!edgeSet.has(key)) {
+                        edgeSet.add(key);
+                        GameState.boundaryEdges.push({ start: p1, end: p2 });
+                    }
+                }
+            }
+        });
+    },
+    
+    generateConnections() {
+        GameState.stars.forEach(star => star.connections = []);
+        GameState.routeLines = [];
+        
+        GameState.stars.forEach(star => {
+            const neighbors = [];
+            
+            GameState.stars.forEach(other => {
+                if (star === other) return;
+                
+                const dx = other.x - star.x;
+                const dy = other.y - star.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < GameConfig.connectionRange && dist > 0) {
+                    neighbors.push({ 
+                        star: other, 
+                        dist, 
+                        angle: Math.atan2(dy, dx) 
+                    });
+                }
+            });
+            
+            neighbors.sort((a, b) => a.dist - b.dist);
+            
+            const sectors = new Map();
+            const sectorSize = Math.PI / 4;
+            
+            neighbors.forEach(neighbor => {
+                let sectorIndex = Math.floor((neighbor.angle + Math.PI) / sectorSize);
+                sectorIndex = Math.max(0, Math.min(7, sectorIndex));
+                if (!sectors.has(sectorIndex)) sectors.set(sectorIndex, neighbor);
+            });
+            
+            Array.from(sectors.values())
+                .sort((a, b) => a.dist - b.dist)
+                .slice(0, GameConfig.maxConnections)
+                .forEach(neighbor => {
+                    if (star.connections.length >= GameConfig.maxConnections || 
+                        neighbor.star.connections.length >= GameConfig.maxConnections) return;
+                    
+                    const newLine = { p1: star, p2: neighbor.star };
+                    
+                    if (this.countIntersections(newLine, GameState.routeLines) <= GameConfig.maxRouteIntersections) {
+                        if (!star.connections.includes(neighbor.star.id)) {
+                            star.connections.push(neighbor.star.id);
+                            neighbor.star.connections.push(star.id);
+                            GameState.routeLines.push(newLine);
+                        }
+                    }
+                });
+        });
+        
+        this.ensureConnectivity();
+    },
+    
+    countIntersections(newLine, existingLines) {
+        let count = 0;
+        
+        for (let line of existingLines) {
+            if (line.p1.id === newLine.p1.id || line.p1.id === newLine.p2.id ||
+                line.p2.id === newLine.p1.id || line.p2.id === newLine.p2.id) continue;
+            
+            if (MathUtils.lineIntersection(
+                {x: newLine.p1.x, y: newLine.p1.y}, 
+                {x: newLine.p2.x, y: newLine.p2.y},
+                {x: line.p1.x, y: line.p1.y}, 
+                {x: line.p2.x, y: line.p2.y}
+            )) count++;
+        }
+        
+        return count;
+    },
+    
+    ensureConnectivity() {
+        const connected = new Set([0]);
+        
+        while (connected.size < GameState.stars.length) {
+            let minDist = Infinity;
+            let bestPair = null;
+            
+            for (let i of connected) {
+                for (let j = 0; j < GameState.stars.length; j++) {
+                    if (connected.has(j)) continue;
+                    
+                    if (GameState.stars[i].connections.length >= GameConfig.maxConnections || 
+                        GameState.stars[j].connections.length >= GameConfig.maxConnections) continue;
+                    
+                    const d = MathUtils.distance(
+                        GameState.stars[i].x, GameState.stars[i].y,
+                        GameState.stars[j].x, GameState.stars[j].y
+                    );
+                    
+                    if (d < minDist) { 
+                        minDist = d; 
+                        bestPair = [i, j]; 
+                    }
+                }
+            }
+            
+            if (bestPair) {
+                const [i, j] = bestPair;
+                if (!GameState.stars[i].connections.includes(j)) {
+                    GameState.stars[i].connections.push(j);
+                    GameState.stars[j].connections.push(i);
+                }
+                connected.add(j);
+            } else break;
+        }
+    }
+};
+
+// ============================================================================
+// СИСТЕМА СТОЛИЦ (ИСПРАВЛЕНА - столицы больше не телепортируются)
+// ============================================================================
+
+const CapitalSystem = {
+    updateAllCapitals() {
+        Logger.add('=== Обновление столиц ===', 'info');
+        
+        FactionsState.list.forEach(faction => {
+            this.updateFactionCapitals(faction);
+        });
+    },
+    
+    updateFactionCapitals(faction) {
+        const clusters = this.findFactionClusters(faction);
+        
+        if (clusters.length === 0) return;
+        
+        const mainCluster = this.findLargestCluster(clusters);
+        
+        // ИСПРАВЛЕНО: Сохраняем существующие столицы, если кластер не изменился
+        this.updateAccountsPreservingCapitals(faction, clusters, mainCluster);
+        
+        this.logCapitalsStatus(faction);
+    },
+    
+    findFactionClusters(faction) {
+        const factionStars = GameState.stars.filter(s => s.factionId === faction.id);
+        const visited = new Set();
+        const clusters = [];
+        
+        for (let startStar of factionStars) {
+            if (visited.has(startStar.id)) continue;
+            
+            const cluster = this.bfsCluster(startStar, factionStars, visited);
+            if (cluster.length > 0) {
+                clusters.push(cluster);
+            }
+        }
+        
+        return clusters;
+    },
+    
+    bfsCluster(startStar, factionStars, visited) {
+        const cluster = [];
+        const queue = [startStar];
+        visited.add(startStar.id);
+        
+        while (queue.length > 0) {
+            const current = queue.shift();
+            cluster.push(current);
+            
+            for (let connId of current.connections) {
+                const neighbor = factionStars.find(s => s.id === connId);
+                if (neighbor && !visited.has(neighbor.id)) {
+                    visited.add(neighbor.id);
+                    queue.push(neighbor);
+                }
+            }
+        }
+        
+        return cluster;
+    },
+    
+    findLargestCluster(clusters) {
+        return clusters.reduce((largest, current) => 
+            current.length > largest.length ? current : largest, clusters[0]);
+    },
+    
+    // НОВЫЙ МЕТОД: Сохраняет существующие столицы, если возможно
+    updateAccountsPreservingCapitals(faction, currentClusters, mainCluster) {
+        // Создаем карту существующих счетов
+        const existingAccountsMap = new Map();
+        faction.accounts.forEach(account => {
+            existingAccountsMap.set(account.capitalStarId, {
+                account: account,
+                stars: new Set(account.stars)
+            });
+        });
+        
+        // Сбрасываем статусы столиц
+        GameState.stars.forEach(star => {
+            if (star.factionId === faction.id) {
+                star.isCapital = false;
+                star.isFalseCapital = false;
+            }
+        });
+        
+        const newAccounts = [];
+        const processedClusters = new Set();
+        
+        // Сначала пытаемся сохранить существующие столицы
+        currentClusters.forEach((cluster, index) => {
+            const isMain = cluster === mainCluster;
+            
+            // Ищем, есть ли в этом кластере существующая столица
+            let existingCapitalInCluster = null;
+            let existingAccountData = null;
+            
+            for (let star of cluster) {
+                for (let [capitalId, data] of existingAccountsMap) {
+                    if (data.stars.has(star.id) && data.account.capitalStarId === star.id) {
+                        existingCapitalInCluster = star;
+                        existingAccountData = data;
+                        break;
+                    }
+                }
+                if (existingCapitalInCluster) break;
+            }
+            
+            if (existingCapitalInCluster && existingAccountData) {
+                // Сохраняем существующую столицу
+                const account = existingAccountData.account;
+                
+                // Обновляем список звезд в счете
+                account.stars = cluster.map(s => s.id);
+                
+                // Назначаем статус
+                if (isMain) {
+                    existingCapitalInCluster.isCapital = true;
+                    account.isMain = true;
+                } else {
+                    existingCapitalInCluster.isFalseCapital = true;
+                    account.isMain = false;
+                }
+                
+                newAccounts.push(account);
+                existingAccountsMap.delete(existingCapitalInCluster.id);
+                processedClusters.add(index);
+                
+                Logger.add(`${faction.name}: сохранена столица на звезде #${existingCapitalInCluster.id}`, 'info');
+            }
+        });
+        
+        // Для оставшихся кластеров создаем новые столицы
+        currentClusters.forEach((cluster, index) => {
+            if (processedClusters.has(index)) return;
+            
+            const isMain = cluster === mainCluster;
+            
+            // Выбираем звезду для новой столицы
+            let capitalStar;
+            
+            if (isMain) {
+                // Для основного кластера - 50/50 между центральной и случайной
+                if (Math.random() < 0.5) {
+                    capitalStar = this.findCentralStar(cluster);
+                } else {
+                    capitalStar = cluster[Math.floor(Math.random() * cluster.length)];
+                }
+            } else {
+                // Для саб-кластеров - случайная звезда
+                capitalStar = cluster[Math.floor(Math.random() * cluster.length)];
+            }
+            
+            if (capitalStar) {
+                // Собираем монеты из существующих счетов этого кластера
+                let mergedCoins = 0;
+                
+                cluster.forEach(star => {
+                    for (let [capitalId, data] of existingAccountsMap) {
+                        if (data.stars.has(star.id)) {
+                            mergedCoins += data.account.coins;
+                            existingAccountsMap.delete(capitalId);
+                            break;
+                        }
+                    }
+                });
+                
+                // Назначаем статус
+                if (isMain) {
+                    capitalStar.isCapital = true;
+                } else {
+                    capitalStar.isFalseCapital = true;
+                }
+                
+                // Создаем новый счет
+                newAccounts.push({
+                    id: index,
+                    capitalStarId: capitalStar.id,
+                    coins: mergedCoins,
+                    stars: cluster.map(s => s.id),
+                    isMain: isMain
+                });
+                
+                Logger.add(`${faction.name}: создана новая ${isMain ? 'основная' : 'саб-'}столица на звезде #${capitalStar.id}`, 'economy');
+            }
+        });
+        
+        // Ликвидируем оставшиеся счета (те, чьи кластеры исчезли)
+        existingAccountsMap.forEach((data, capitalId) => {
+            Logger.add(`${faction.name}: счет #${data.account.id} ликвидирован (${data.account.coins} $ потеряно)`, 'warning');
+        });
+        
+        // Сортируем счета: сначала основной, потом саб-столицы
+        faction.accounts = newAccounts.sort((a, b) => {
+            if (a.isMain && !b.isMain) return -1;
+            if (!a.isMain && b.isMain) return 1;
+            return 0;
+        });
+    },
+    
+    findCentralStar(cluster) {
+        if (cluster.length === 0) return null;
+        
+        const otherCapitals = [];
+        FactionsState.list.forEach(otherFaction => {
+            if (otherFaction.id !== cluster[0].factionId) {
+                otherFaction.accounts.forEach(account => {
+                    const capital = GameState.stars.find(s => s.id === account.capitalStarId);
+                    if (capital) otherCapitals.push(capital);
+                });
+            }
+        });
+        
+        if (otherCapitals.length === 0) {
+            return cluster[Math.floor(Math.random() * cluster.length)];
+        }
+        
+        let bestStar = cluster[0];
+        let bestMinDist = -Infinity;
+        
+        for (let star of cluster) {
+            let minDist = Infinity;
+            for (let capital of otherCapitals) {
+                const dist = MathUtils.distance(star.x, star.y, capital.x, capital.y);
+                minDist = Math.min(minDist, dist);
+            }
+            
+            if (minDist > bestMinDist) {
+                bestMinDist = minDist;
+                bestStar = star;
+            }
+        }
+        
+        return bestStar;
+    },
+    
+    logCapitalsStatus(faction) {
+        const mainCapital = faction.accounts.find(a => a.isMain);
+        const subCapitals = faction.accounts.filter(a => !a.isMain);
+        
+        Logger.add(`${faction.name}: ${faction.accounts.length} счетов`, 'info');
+        
+        if (mainCapital) {
+            const mainCluster = GameState.stars.filter(s => mainCapital.stars.includes(s.id));
+            Logger.add(`  📍 Основная столица: звезда #${mainCapital.capitalStarId} (${mainCluster.length} звёзд, ${mainCapital.coins} $)`, 'safe');
+        }
+        
+        subCapitals.forEach((account, i) => {
+            const cluster = GameState.stars.filter(s => account.stars.includes(s.id));
+            Logger.add(`  🏛️  Саб-столица #${i+1}: звезда #${account.capitalStarId} (${cluster.length} звёзд, ${account.coins} $)`, 'economy');
+        });
+    }
+};
+
+// ============================================================================
+// СИСТЕМА ЭКОНОМИКИ (ИСПРАВЛЕН ТУЛТИП)
+// ============================================================================
+
+const EconomySystem = {
+    calculateAccountIncome(faction, account) {
+        const stars = account.stars.map(id => GameState.stars.find(s => s.id === id)).filter(s => s);
+        const territoryCount = stars.length;
+        const starCount = stars.filter(s => !s.isVirtual).length;
+        
+        const baseIncome = territoryCount * GameConfig.economy.baseIncomePerTerritory;
+        const starBonus = baseIncome * (starCount * GameConfig.economy.starBonusPercent / 100);
+        const totalIncome = Math.floor(baseIncome + starBonus);
+        
+        return {
+            baseIncome,
+            starBonus: Math.floor(starBonus),
+            totalIncome,
+            territoryCount,
+            starCount
+        };
+    },
+    
+    distributeIncome() {
+        FactionsState.list.forEach(faction => {
+            let totalFactionIncome = 0;
+            
+            faction.accounts.forEach(account => {
+                const income = this.calculateAccountIncome(faction, account);
+                account.coins += income.totalIncome;
+                totalFactionIncome += income.totalIncome;
+                
+                Logger.add(`${faction.name} ${account.isMain ? '📍' : '🏛️'} +${income.totalIncome} $ (${income.territoryCount} тер., ${income.starCount} звёзд)`, 'economy');
+            });
+            
+            Logger.add(`${faction.name}: общий доход ${totalFactionIncome} $`, 'economy');
+        });
+    },
+    
+// ИСПРАВЛЕНО: Тултип теперь использует правильные координаты
+showCapitalTooltip(faction, account, x, y) {
+    const income = this.calculateAccountIncome(faction, account);
+    const tooltip = document.getElementById('capitalTooltip');
+    
+    tooltip.innerHTML = `
+        <h4>${faction.name} ${account.isMain ? '📍' : '🏛️'}</h4>
+        <div class="stat">
+            <span class="stat-label">Базовый доход:</span>
+            <span class="stat-value">+${income.baseIncome} $</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Бонус звёзд:</span>
+            <span class="stat-value">+${income.starBonus} $</span>
+        </div>
+        <div class="total">
+            Итого: +${income.totalIncome} $ / ход
+        </div>
+        <div class="stat" style="margin-top: 8px;">
+            <span class="stat-label">На счету:</span>
+            <span class="stat-value">${account.coins.toLocaleString()} $</span>
+        </div>
+    `;
+    
+    tooltip.style.display = 'block';
+    
+    // Получаем контейнер игры и канвас для расчета позиции
+    const gameContainer = document.getElementById('game-container');
+    const canvas = document.getElementById('gameCanvas');
+    const containerRect = gameContainer.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    // Координаты клика относительно канваса конвертируем в координаты относительно game-container
+    const clickX = canvasRect.left + x - containerRect.left;
+    const clickY = canvasRect.top + y - containerRect.top;
+    
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const padding = 10;
+    
+    // Позиционируем тултип: немного правее и выше курсора
+    let newX = clickX + 15;
+    let newY = clickY - tooltipRect.height - 15;
+    
+    // Если не помещается сверху - показываем снизу
+    if (newY < padding) {
+        newY = clickY + 25;
+    }
+    
+    // Если не помещается справа - показываем слева
+    if (newX + tooltipRect.width > containerRect.width - padding) {
+        newX = clickX - tooltipRect.width - 15;
+    }
+    
+    // Проверяем левую границу
+    if (newX < padding) {
+        newX = padding;
+    }
+    
+    tooltip.style.left = `${newX}px`;
+    tooltip.style.top = `${newY}px`;
+    
+    // Для отладки - посмотри в консоли браузера (F12)
+    console.log('Клик на канвасе:', { canvasX: x, canvasY: y });
+    console.log('Позиция тултипа:', { newX, newY });
+},
+hideCapitalTooltip() {
+    document.getElementById('capitalTooltip').style.display = 'none';
+}
+};
+
+// ============================================================================
+// СИСТЕМА ОТРИСОВКИ
+// ============================================================================
+
+const capitalPulses = [];
+
+const Renderer = {
+    canvas: null,
+    ctx: null,
+    
+    init() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+    },
+    
+    resize() {
+        this.canvas.width = this.canvas.parentElement.clientWidth;
+        this.canvas.height = this.canvas.parentElement.clientHeight;
+    },
+    
+    generateBackgroundStars() {
+        GameState.bgStars = [];
+        const bounds = GameState.universeBounds;
+        
+        for (let i = 0; i < 400; i++) {
+            GameState.bgStars.push({
+                x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+                y: bounds.minY + Math.random() * (bounds.maxY - bounds.minY),
+                size: Math.random() * 1.5 + 0.5,
+                alpha: 0.2 + Math.random() * 0.4,
+                twinkle: Math.random() * Math.PI * 2
+            });
+        }
+    },
+    
+    drawDeepSpace() {
+        const ctx = this.ctx;
+        
+        ctx.save();
+        ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        ctx.scale(CameraState.zoom, CameraState.zoom);
+        ctx.translate(-this.canvas.width / 2, -this.canvas.height / 2);
+        ctx.translate(-CameraState.x, -CameraState.y);
+        
+        GameState.bgStars.forEach(star => {
+            const twinkle = 0.5 + 0.5 * Math.sin(GameState.time * 0.5 + star.twinkle);
+            ctx.fillStyle = `rgba(200, 220, 255, ${star.alpha * twinkle})`;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size / CameraState.zoom, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
+        if (GameState.boundaryEdges.length > 0) {
+            ctx.strokeStyle = GameConfig.colors.boundaryLine;
+            ctx.lineWidth = 1.5 / CameraState.zoom;
+            ctx.setLineDash([5 / CameraState.zoom, 4 / CameraState.zoom]);
+            ctx.beginPath();
+            
+            GameState.boundaryEdges.forEach(edge => {
+                ctx.moveTo(edge.start.x, edge.start.y);
+                ctx.lineTo(edge.end.x, edge.end.y);
+            });
+            
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        ctx.restore();
+    },
+    
+    drawMap() {
+        if (!GameState.stars.length) return;
+        
+        const ctx = this.ctx;
+        
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        ctx.save();
+        ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        ctx.scale(CameraState.zoom, CameraState.zoom);
+        ctx.translate(-this.canvas.width / 2, -this.canvas.height / 2);
+        ctx.translate(-CameraState.x, -CameraState.y);
+        
+        GameState.stars.forEach(star => {
+            if (!star.voronoiCell || star.voronoiCell.length < 3) return;
+            
+            if (star.factionId !== null && FactionsState.list[star.factionId]) {
+                ctx.fillStyle = FactionsState.list[star.factionId].color.main;
+                ctx.strokeStyle = FactionsState.list[star.factionId].color.border;
+            } else {
+                ctx.fillStyle = 'rgba(50, 50, 50, 0.1)';
+                ctx.strokeStyle = GameConfig.colors.sectorBorder;
+            }
+            
+            ctx.lineWidth = 1 / CameraState.zoom;
+            ctx.beginPath();
+            ctx.moveTo(star.voronoiCell[0].x, star.voronoiCell[0].y);
+            
+            for (let i = 1; i < star.voronoiCell.length; i++) {
+                ctx.lineTo(star.voronoiCell[i].x, star.voronoiCell[i].y);
+            }
+            
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        });
+        
+        ctx.lineWidth = 1.5 / CameraState.zoom;
+        
+        GameState.stars.forEach(star => {
+            star.connections.forEach(connId => {
+                if (connId < star.id) return;
+                
+                const target = GameState.stars.find(s => s.id === connId);
+                if (target) {
+                    const brightness = (star.brightness + target.brightness) / 2;
+                    ctx.strokeStyle = brightness > 0.85 ? GameConfig.colors.lineBright : GameConfig.colors.line;
+                    ctx.globalAlpha = 0.5 + brightness * 0.5;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(star.x, star.y);
+                    ctx.lineTo(target.x, target.y);
+                    ctx.stroke();
+                    
+                    ctx.globalAlpha = 1.0;
+                }
+            });
+        });
+        
+        if (!PlayerState.isMoving && PlayerState.currentStarId !== null) {
+            const currentStar = GameState.stars.find(s => s.id === PlayerState.currentStarId);
+            if (currentStar) {
+                currentStar.connections.forEach(connId => {
+                    const target = GameState.stars.find(s => s.id === connId);
+                    if (target) {
+                        ctx.strokeStyle = GameConfig.colors.lineAvailable;
+                        ctx.globalAlpha = 0.8;
+                        ctx.lineWidth = 2.5 / CameraState.zoom;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(currentStar.x, currentStar.y);
+                        ctx.lineTo(target.x, target.y);
+                        ctx.stroke();
+                        
+                        ctx.globalAlpha = 1.0;
+                        ctx.lineWidth = 1.5 / CameraState.zoom;
+                    }
+                });
+            }
+        }
+        
+        GameState.stars.forEach(star => {
+            star.angle += 0.015;
+            
+            ctx.save();
+            ctx.translate(star.x, star.y);
+            
+            if ((star.isCapital || star.isFalseCapital) && FactionsState.list[star.factionId]) {
+                ctx.globalAlpha = 0.9;
+                ctx.fillStyle = FactionsState.list[star.factionId].color.border;
+                
+                const capitalSize = 14 / CameraState.zoom;
+                const innerRatio = 0.4;
+                
+                ctx.beginPath();
+                for (let i = 0; i < 10; i++) {
+                    const angle = (Math.PI * 2 * i / 10) - Math.PI / 2;
+                    const radius = (i % 2 === 0) ? capitalSize : capitalSize * innerRatio;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                
+                if (star.isFalseCapital) {
+                    ctx.strokeStyle = FactionsState.list[star.factionId].color.border;
+                    ctx.lineWidth = 3 / CameraState.zoom;
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.arc(0, 0, capitalSize * 0.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fill();
+                } else {
+                    ctx.fill();
+                }
+                
+                ctx.globalAlpha = 1.0;
+            }
+            
+            ctx.globalAlpha = 0.2;
+            ctx.save();
+            ctx.rotate(star.angle);
+            
+            if (star.starType === 'red') ctx.fillStyle = GameConfig.colors.starRed;
+            else if (star.starType === 'blue') ctx.fillStyle = GameConfig.colors.starBlue;
+            else ctx.fillStyle = GameConfig.colors.starYellow;
+            
+            const size = 5 / CameraState.zoom;
+            ctx.fillRect(-size, -size, size * 2, size * 2);
+            ctx.restore();
+            
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = star.isPlayer ? '#fff' : 
+                (star.starType === 'red' ? GameConfig.colors.starRed : 
+                (star.starType === 'blue' ? GameConfig.colors.starBlue : GameConfig.colors.starYellow));
+            
+            ctx.fillRect(-3/CameraState.zoom, -3/CameraState.zoom, 6/CameraState.zoom, 6/CameraState.zoom);
+            
+            ctx.restore();
+        });
+        
+        this.drawCapitalPulses();
+        this.drawFactionEmblems();
+        
+        if (PlayerState.position.x !== 0 && PlayerState.position.y !== 0) {
+            ctx.save();
+            ctx.translate(PlayerState.position.x, PlayerState.position.y);
+            
+            let arrowAngle = PlayerState.isMoving && PlayerState.targetStarId ?
+                Math.atan2(
+                    GameState.stars.find(s => s.id === PlayerState.targetStarId).y - PlayerState.position.y,
+                    GameState.stars.find(s => s.id === PlayerState.targetStarId).x - PlayerState.position.x
+                ) :
+                PlayerState.orbitAngle + Math.PI / 2;
+            
+            ctx.rotate(arrowAngle + Math.PI / 2);
+            
+            const arrowSize = 12 / CameraState.zoom;
+            ctx.fillStyle = GameConfig.colors.player;
+            ctx.shadowBlur = 10 / CameraState.zoom;
+            ctx.shadowColor = GameConfig.colors.player;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, -arrowSize);
+            ctx.lineTo(arrowSize * 0.6, arrowSize * 0.5);
+            ctx.lineTo(0, arrowSize * 0.2);
+            ctx.lineTo(-arrowSize * 0.6, arrowSize * 0.5);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+        
+        ctx.restore();
+        
+        this.drawDeepSpace();
+    },
+    
+    drawCapitalPulses() {
+        const ctx = this.ctx;
+        const currentTime = GameState.time * 1000;
+        
+        if (currentTime - GameState.lastPulseTime >= GameConfig.capitalPulseInterval) {
+            GameState.stars.forEach(star => {
+                if ((star.isCapital || star.isFalseCapital) && star.factionId !== null) {
+                    capitalPulses.push({
+                        starId: star.id,
+                        factionId: star.factionId,
+                        birthTime: currentTime,
+                        age: 0,
+                        isFalseCapital: star.isFalseCapital
+                    });
+                }
+            });
+            GameState.lastPulseTime = currentTime;
+        }
+        
+        for (let i = capitalPulses.length - 1; i >= 0; i--) {
+            const pulse = capitalPulses[i];
+            pulse.age = currentTime - pulse.birthTime;
+            
+            if (pulse.age > GameConfig.capitalPulseDuration) {
+                capitalPulses.splice(i, 1);
+                continue;
+            }
+            
+            const star = GameState.stars.find(s => s.id === pulse.starId);
+            if (!star || !FactionsState.list[pulse.factionId]) continue;
+            
+            const progress = pulse.age / GameConfig.capitalPulseDuration;
+            const alpha = 0.5 * (1 - progress);
+            const scale = 1 + progress * 1.5;
+            
+            ctx.save();
+            ctx.translate(star.x, star.y);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = FactionsState.list[pulse.factionId].color.border;
+            
+            const baseSize = (14 / CameraState.zoom) * scale;
+            const innerRatio = 0.4;
+            
+            ctx.beginPath();
+            for (let j = 0; j < 10; j++) {
+                const angle = (Math.PI * 2 * j / 10) - Math.PI / 2;
+                const radius = (j % 2 === 0) ? baseSize : baseSize * innerRatio;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                
+                if (j === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            
+            if (pulse.isFalseCapital) {
+                ctx.strokeStyle = FactionsState.list[pulse.factionId].color.border;
+                ctx.lineWidth = 3 / CameraState.zoom;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, baseSize * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fill();
+            } else {
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+    },
+    
+    drawFactionEmblems() {
+        const ctx = this.ctx;
+        
+        FactionsState.list.forEach(faction => {
+            const clusters = CapitalSystem.findFactionClusters(faction);
+            
+            clusters.forEach(cluster => {
+                const capitalStar = GameState.stars.find(s => s.id === faction.accounts.find(a => 
+                    a.stars.includes(cluster[0].id))?.capitalStarId);
+                if (!capitalStar) return;
+                
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                
+                cluster.forEach(star => {
+                    if (star.voronoiCell && star.voronoiCell.length > 0) {
+                        star.voronoiCell.forEach(point => {
+                            minX = Math.min(minX, point.x);
+                            maxX = Math.max(maxX, point.x);
+                            minY = Math.min(minY, point.y);
+                            maxY = Math.max(maxY, point.y);
+                        });
+                    }
+                });
+                
+                if (minX === Infinity) return;
+                
+                const centerX = (minX + maxX) / 2;
+                const centerY = (minY + maxY) / 2;
+                const emblemSize = Math.min(maxX - minX, maxY - minY) * 0.35;
+                
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.globalAlpha = 0.35;
+                
+                const svgPath = faction.emblem.match(/d="([^"]+)"/);
+                if (svgPath && svgPath[1]) {
+                    const path2D = new Path2D(svgPath[1]);
+                    ctx.fillStyle = faction.color.border;
+                    ctx.scale(emblemSize / 24, emblemSize / 24);
+                    ctx.translate(-12, -12);
+                    ctx.fill(path2D);
+                }
+                
+                ctx.restore();
+            });
+        });
+    }
+};
+
+// ============================================================================
+// УПРАВЛЕНИЕ КАМЕРОЙ
+// ============================================================================
+
+const CameraController = {
+    gameContainer: null,
+    
+    init() {
+        this.gameContainer = document.getElementById('game-container');
+        this.setupEventListeners();
+    },
+    
+    setupEventListeners() {
+        this.gameContainer.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                CameraState.isDragging = true;
+                CameraState.lastMouseX = e.clientX;
+                CameraState.lastMouseY = e.clientY;
+                this.gameContainer.style.cursor = 'grabbing';
+            }
+        });
+        
+        window.addEventListener('mousemove', (e) => {
+            if (CameraState.isDragging) {
+                CameraState.x -= (e.clientX - CameraState.lastMouseX) / CameraState.zoom;
+                CameraState.y -= (e.clientY - CameraState.lastMouseY) / CameraState.zoom;
+                this.clampCamera();
+                
+                CameraState.lastMouseX = e.clientX;
+                CameraState.lastMouseY = e.clientY;
+            }
+        });
+        
+        window.addEventListener('mouseup', () => { 
+            CameraState.isDragging = false; 
+            this.gameContainer.style.cursor = 'grab'; 
+        });
+        
+        Renderer.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            const delta = -e.deltaY * 0.001;
+            const newZoom = Math.max(
+                CameraState.minZoom, 
+                Math.min(CameraState.maxZoom, 
+                CameraState.zoom * (1 + delta))
+            );
+            
+            const rect = Renderer.canvas.getBoundingClientRect();
+            const worldPosBefore = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            
+            CameraState.zoom = newZoom;
+            
+            const worldPosAfter = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            
+            CameraState.x += worldPosBefore.x - worldPosAfter.x;
+            CameraState.y += worldPosBefore.y - worldPosAfter.y;
+            
+            this.clampCamera();
+            this.updateZoomIndicator();
+        }, { passive: false });
+    },
+    
+    screenToWorld(screenX, screenY) {
+        return {
+            x: (screenX - Renderer.canvas.width / 2) / CameraState.zoom + 
+               Renderer.canvas.width / 2 + CameraState.x,
+            y: (screenY - Renderer.canvas.height / 2) / CameraState.zoom + 
+               Renderer.canvas.height / 2 + CameraState.y
+        };
+    },
+    
+    clampCamera() {
+        const bounds = GameState.universeBounds;
+        const padding = 100;
+        
+        const viewWidth = Renderer.canvas.width / CameraState.zoom;
+        const viewHeight = Renderer.canvas.height / CameraState.zoom;
+        
+        const minX = bounds.minX - padding + viewWidth / 2 - Renderer.canvas.width / 2;
+        const maxX = bounds.maxX + padding - viewWidth / 2 - Renderer.canvas.width / 2;
+        const minY = bounds.minY - padding + viewHeight / 2 - Renderer.canvas.height / 2;
+        const maxY = bounds.maxY + padding - viewHeight / 2 - Renderer.canvas.height / 2;
+        
+        CameraState.x = Math.max(minX, Math.min(maxX, CameraState.x));
+        CameraState.y = Math.max(minY, Math.min(maxY, CameraState.y));
+    },
+    
+    updateZoomIndicator() {
+        document.getElementById('zoom-indicator').textContent = 
+            `Zoom: ${Math.round(CameraState.zoom * 100)}%`;
+    }
+};
+
+// ============================================================================
+// УПРАВЛЕНИЕ ИГРОКОМ
+// ============================================================================
+
+const PlayerController = {
+    init() {
+        this.setupEventListeners();
+    },
+    
+    setupEventListeners() {
+        Renderer.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            EconomySystem.hideCapitalTooltip();
+            
+            if (!GameState.isRunning || PlayerState.isMoving) return;
+            
+            const rect = Renderer.canvas.getBoundingClientRect();
+            const worldPos = CameraController.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            
+            let nearestStar = null;
+            let nearestDist = 50;
+            
+            GameState.stars.forEach(star => {
+                const dist = MathUtils.distance(star.x, star.y, worldPos.x, worldPos.y);
+                if (dist < nearestDist) { 
+                    nearestDist = dist; 
+                    nearestStar = star; 
+                }
+            });
+            
+            if (nearestStar && nearestStar.id !== PlayerState.currentStarId) {
+                const currentStar = GameState.stars.find(s => s.id === PlayerState.currentStarId);
+                
+                if (currentStar && currentStar.connections.includes(nearestStar.id)) {
+                    this.moveToStar(nearestStar);
+                }
+            }
+        });
+    },
+    
+    moveToStar(targetStar) {
+        PlayerState.targetStarId = targetStar.id;
+        PlayerState.originStarId = PlayerState.currentStarId;
+        PlayerState.isMoving = true;
+        PlayerState.moveProgress = 0;
+        PlayerState.startPos = { x: PlayerState.position.x, y: PlayerState.position.y };
+        
+        const dx = PlayerState.startPos.x - targetStar.x;
+        const dy = PlayerState.startPos.y - targetStar.y;
+        const angleToTarget = Math.atan2(dy, dx);
+        
+        PlayerState.targetOrbitPoint = {
+            x: targetStar.x + Math.cos(angleToTarget) * GameConfig.playerOrbitRadius,
+            y: targetStar.y + Math.sin(angleToTarget) * GameConfig.playerOrbitRadius
+        };
+        
+        PlayerState.orbitAngle = angleToTarget;
+        
+        PlayerState.moveDistance = MathUtils.distance(
+            PlayerState.targetOrbitPoint.x, PlayerState.targetOrbitPoint.y,
+            PlayerState.startPos.x, PlayerState.startPos.y
+        );
+        
+        TimerState.isRunning = true;
+    },
+    
+    update(deltaTime) {
+        const currentStar = GameState.stars.find(s => s.id === PlayerState.currentStarId);
+        if (!currentStar) return;
+        
+        if (PlayerState.isMoving && PlayerState.targetStarId !== null) {
+            const targetStar = GameState.stars.find(s => s.id === PlayerState.targetStarId);
+            
+            if (targetStar) {
+                PlayerState.moveProgress += (GameConfig.playerMoveSpeed * deltaTime) / PlayerState.moveDistance;
+                
+                if (PlayerState.moveProgress >= 1) {
+                    PlayerState.currentStarId = PlayerState.targetStarId;
+                    PlayerState.targetStarId = null;
+                    PlayerState.originStarId = null;
+                    PlayerState.isMoving = false;
+                    PlayerState.moveProgress = 0;
+                    PlayerState.moveDistance = 0;
+                    
+                    TimerState.isRunning = false;
+                } else {
+                    PlayerState.position.x = PlayerState.startPos.x + 
+                        (PlayerState.targetOrbitPoint.x - PlayerState.startPos.x) * PlayerState.moveProgress;
+                    PlayerState.position.y = PlayerState.startPos.y + 
+                        (PlayerState.targetOrbitPoint.y - PlayerState.startPos.y) * PlayerState.moveProgress;
+                }
+            }
+        } else {
+            PlayerState.orbitAngle += GameConfig.playerOrbitSpeed * deltaTime;
+            PlayerState.position.x = currentStar.x + Math.cos(PlayerState.orbitAngle) * GameConfig.playerOrbitRadius;
+            PlayerState.position.y = currentStar.y + Math.sin(PlayerState.orbitAngle) * GameConfig.playerOrbitRadius;
+        }
+    }
+};
+
+// ============================================================================
+// УПРАВЛЕНИЕ ТАЙМЕРОМ (ОБНОВЛЕНО)
+// ============================================================================
+
+const TimerController = {
+    init() {
+        const timerBtn = document.getElementById('timerToggleBtn');
+        timerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            TimerState.alwaysRun = !TimerState.alwaysRun;
+            timerBtn.classList.toggle('active', TimerState.alwaysRun);
+        });
+    },
+    
+    update(deltaTime) {
+        if (TimerState.alwaysRun || PlayerState.isMoving) {
+            TimerState.current -= deltaTime;
+            
+            if (TimerState.current <= 0) {
+                TimerState.turnCount++;
+                TimerState.current = TimerState.max;
+                
+                document.getElementById('turnCounterValue').textContent = TimerState.turnCount;
+                
+                // 1. Сначала распределяем доход
+                EconomySystem.distributeIncome();
+                
+                // 2. Обновляем столицы, НО сохраняем существующие
+                CapitalSystem.updateAllCapitals();
+                
+                // 3. Обновляем статистику фракций
+                FactionsState.list.forEach(faction => {
+                    faction.starCount = GameState.stars.filter(s => s.factionId === faction.id).length;
+                });
+                
+                // 4. Обновляем панель фракций, если она открыта
+                if (FactionsState.panelOpen) {
+                    FactionSystem.updatePanel();
+                }
+            }
+        }
+        
+        document.getElementById('turnTimerBar').style.width = 
+            `${(TimerState.current / TimerState.max) * 100}%`;
+    }
+};
+
+// ============================================================================
+// УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ (ОБНОВЛЕНО)
+// ============================================================================
+
+const UIController = {
+    init() {
+        this.setupEventListeners();
+    },
+    
+    setupEventListeners() {
+        const starSlider = document.getElementById('starSlider');
+        starSlider.addEventListener('input', () => {
+            GameState.starCount = parseInt(starSlider.value);
+            document.getElementById('starCountDisplay').textContent = 
+                `${GameState.starCount} звёзд`;
+        });
+        
+        document.getElementById('factionBtn').addEventListener('click', () => {
+            this.toggleFactionPanel();
+        });
+        
+        document.getElementById('factionPanelClose').addEventListener('click', () => {
+            FactionsState.panelOpen = false;
+            document.getElementById('factionPanel').classList.remove('active');
+            document.getElementById('factionBtn').classList.remove('active');
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '`' || e.key === 'ё') {
+                e.preventDefault();
+                const logPanel = document.getElementById('logPanel');
+                logPanel.classList.toggle('active');
+                Logger.add('Лог-панель ' + 
+                    (logPanel.classList.contains('active') ? 'открыта' : 'закрыта'), 'info');
+            }
+        });
+        
+Renderer.canvas.addEventListener('click', (e) => {
+    if (!GameState.isRunning) return;
+    
+    const rect = Renderer.canvas.getBoundingClientRect();
+    const worldPos = CameraController.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    
+    let clickedCapital = null;
+    let clickedFaction = null;
+    let clickedAccount = null;
+    
+    GameState.stars.forEach(star => {
+        if (star.isCapital || star.isFalseCapital) {
+            const dist = MathUtils.distance(star.x, star.y, worldPos.x, worldPos.y);
+            if (dist < 30 / CameraState.zoom) {
+                clickedCapital = star;
+                const faction = FactionsState.list.find(f => f.id === star.factionId);
+                if (faction) {
+                    clickedFaction = faction;
+                    clickedAccount = faction.accounts.find(a => a.capitalStarId === star.id);
+                }
+            }
+        }
+    });
+    
+    if (clickedCapital && clickedFaction && clickedAccount) {
+        // ИСПРАВЛЕНО: Используем координаты относительно canvas
+        const canvasX = e.clientX - rect.left;
+        const canvasY = e.clientY - rect.top;
+        EconomySystem.showCapitalTooltip(clickedFaction, clickedAccount, canvasX, canvasY);
+    } else {
+        EconomySystem.hideCapitalTooltip();
+    }
+});
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!GameState.isRunning && !GameState.isGenerating) this.startGame();
+            }
+        });
+        
+        document.getElementById('startButton').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!GameState.isRunning && !GameState.isGenerating) this.startGame();
+        });
+    },
+    
+    toggleFactionPanel() {
+        if (!GameState.isRunning) return;
+        
+        FactionsState.panelOpen = !FactionsState.panelOpen;
+        document.getElementById('factionPanel').classList.toggle('active', FactionsState.panelOpen);
+        document.getElementById('factionBtn').classList.toggle('active', FactionsState.panelOpen);
+        
+        if (FactionsState.panelOpen) {
+            FactionSystem.updatePanel();
+        }
+    },
+    
+    startGame() {
+        if (GameState.isRunning || GameState.isGenerating) return;
+        
+        GameState.isGenerating = true;
+        
+        document.getElementById('loadingIndicator').style.display = 'block';
+        document.getElementById('startButton').disabled = true;
+        document.getElementById('startButton').textContent = 'ГЕНЕРАЦИЯ...';
+        document.getElementById('starSlider').disabled = true;
+        
+        setTimeout(() => {
+            GameState.isRunning = true;
+            GameState.isGenerating = false;
+            
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('status-light').classList.add('active');
+            
+            const sysStatus = document.getElementById('sys-status');
+            sysStatus.innerText = "ONLINE";
+            sysStatus.style.color = "#00e676";
+            
+            Renderer.resize();
+            this.generateMap();
+            
+            TimerState.current = GameConfig.turnTimeLimit;
+            TimerState.turnCount = 0;
+            TimerState.isRunning = false;
+            
+            document.getElementById('turnCounterValue').textContent = '0';
+            document.getElementById('turnTimerBar').style.width = '100%';
+            
+            if (!window.gameLoopStarted) {
+                window.gameLoopStarted = true;
+                requestAnimationFrame(gameLoop);
+            }
+        }, 100);
+    },
+    
+    generateMap() {
+        try {
+            GameState.stars = [];
+            GameState.virtualStars = [];
+            GameState.boundaryEdges = [];
+            GameState.routeLines = [];
+            capitalPulses.length = 0;
+            GameState.lastPulseTime = 0;
+            
+            Logger.clear();
+            Logger.add('=== Генерация карты ===', 'info');
+            
+            MapGenerator.generateUniverseShape();
+            MapGenerator.generateStarsInUniverse();
+            MapGenerator.assignStarTypes();
+            
+            FactionSystem.initialize();
+            MapGenerator.generateSpawnPoints();
+            MapGenerator.spreadInfluenceFromSpawns();
+            
+            MapGenerator.generateVirtualStars();
+            MapGenerator.computeVoronoi();
+            MapGenerator.generateConnections();
+            
+            CapitalSystem.updateAllCapitals();
+            
+            Renderer.generateBackgroundStars();
+            
+            Logger.add('=== Генерация завершена ===', 'safe');
+            
+            if (GameState.stars.length > 0) {
+                const playerStar = GameState.stars[Math.floor(Math.random() * GameState.stars.length)];
+                playerStar.isPlayer = true;
+                GameState.playerStarId = playerStar.id;
+                
+                PlayerState.currentStarId = playerStar.id;
+                PlayerState.targetStarId = null;
+                PlayerState.originStarId = null;
+                PlayerState.orbitAngle = Math.random() * Math.PI * 2;
+                
+                PlayerState.position = {
+                    x: playerStar.x + Math.cos(PlayerState.orbitAngle) * GameConfig.playerOrbitRadius,
+                    y: playerStar.y + Math.sin(PlayerState.orbitAngle) * GameConfig.playerOrbitRadius
+                };
+                
+                PlayerState.isMoving = false;
+                PlayerState.moveProgress = 0;
+                PlayerState.moveDistance = 0;
+                PlayerState.startPos = { x: PlayerState.position.x, y: PlayerState.position.y };
+                PlayerState.targetOrbitPoint = { x: PlayerState.position.x, y: PlayerState.position.y };
+                
+                CameraState.x = playerStar.x - Renderer.canvas.width / 2;
+                CameraState.y = playerStar.y - Renderer.canvas.height / 2;
+                CameraState.zoom = 1;
+                
+                CameraController.updateZoomIndicator();
+            }
+        } catch (e) {
+            console.error("Error:", e);
+            Logger.add(`Ошибка: ${e.message}`, 'error');
+        }
+    }
+};
+
+// ============================================================================
+// ОСНОВНОЙ ИГРОВОЙ ЦИКЛ
+// ============================================================================
+
+let lastTime = performance.now();
+
+function gameLoop(currentTime) {
+    if (GameState.isRunning) {
+        const deltaTime = Math.min(100, currentTime - lastTime);
+        lastTime = currentTime;
+        
+        GameState.time += 0.05;
+        
+        PlayerController.update(deltaTime);
+        TimerController.update(deltaTime);
+        
+        Renderer.drawMap();
+    }
+    
+    requestAnimationFrame(gameLoop);
+}
+
+// ============================================================================
+// ИНИЦИАЛИЗАЦИЯ
+// ============================================================================
+
+window.addEventListener('load', () => {
+    Renderer.init();
+    CameraController.init();
+    PlayerController.init();
+    TimerController.init();
+    UIController.init();
+    
+    window.addEventListener('resize', () => Renderer.resize());
+    
+    requestAnimationFrame(gameLoop);
+});
+</script>
+</body>
+</html>
